@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:00e1ff,100:0055ff&height=200&section=header&text=ESP-NOW%20Mesh%20v3&fontSize=45&fontAlignY=35&animation=fadeIn&fontColor=ffffff"/>
+  <img src="https://capsule-render.vercel.app/api?type=waving&amp;color=0:00e1ff,100:0055ff&amp;height=200&amp;section=header&amp;text=ESP-NOW%20Mesh%20v3&amp;fontSize=45&amp;fontAlignY=35&amp;animation=fadeIn&amp;fontColor=ffffff"/>
 </p>
 
 # 🌐 ESP-NOW Mesh Network Library
@@ -9,9 +9,18 @@
 ---
 
 <p align="center">
-  <img src="https://skillicons.dev/icons?i=c,cpp,arduino,cmake,git,github,raspberrypi,linux,docker,vscode" />
+  <img src="https://img.shields.io/badge/-C-A8B9CC?logo=c&amp;logoColor=white&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-C++-00599C?logo=cplusplus&amp;logoColor=white&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-Arduino-00979D?logo=arduino&amp;logoColor=white&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-CMake-064F8C?logo=cmake&amp;logoColor=white&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-Git-F05032?logo=git&amp;logoColor=white&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-GitHub-181717?logo=github&amp;logoColor=white&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-Raspberry%20Pi-A22846?logo=raspberrypi&amp;logoColor=white&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-Linux-FCC624?logo=linux&amp;logoColor=black&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-Docker-2496ED?logo=docker&amp;logoColor=white&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-VS%20Code-007ACC?logo=visualstudiocode&amp;logoColor=white&amp;style=for-the-badge" />
   <br>
-  <img src="https://img.shields.io/badge/ESP32-000000?style=for-the-badge&logo=espressif&logoColor=white" />
+  <img src="https://img.shields.io/badge/ESP32-000000?style=for-the-badge&amp;logo=espressif&amp;logoColor=white" />
   <img src="https://img.shields.io/badge/ESP--NOW-00A3E0?style=for-the-badge" />
   <img src="https://img.shields.io/badge/AES--128--CCM-8A2BE2?style=for-the-badge" />
   <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" />
@@ -189,7 +198,18 @@ graph TB
 # 🚀 Tech Stack
 
 <p align="left">
-  <img src="https://skillicons.dev/icons?i=c,cpp,arduino,cmake,git,github,raspberrypi,linux,bash,docker,vscode,python" />
+  <img src="https://img.shields.io/badge/-C-A8B9CC?logo=c&amp;logoColor=white&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-C++-00599C?logo=cplusplus&amp;logoColor=white&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-Arduino-00979D?logo=arduino&amp;logoColor=white&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-CMake-064F8C?logo=cmake&amp;logoColor=white&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-Git-F05032?logo=git&amp;logoColor=white&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-GitHub-181717?logo=github&amp;logoColor=white&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-Raspberry%20Pi-A22846?logo=raspberrypi&amp;logoColor=white&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-Linux-FCC624?logo=linux&amp;logoColor=black&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-Bash-4EAA25?logo=gnubash&amp;logoColor=white&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-Docker-2496ED?logo=docker&amp;logoColor=white&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-VS%20Code-007ACC?logo=visualstudiocode&amp;logoColor=white&amp;style=for-the-badge" />
+  <img src="https://img.shields.io/badge/-Python-3776AB?logo=python&amp;logoColor=white&amp;style=for-the-badge" />
 </p>
 
 ---
@@ -204,5 +224,5 @@ graph TB
 <p align="center">
   <i>"No Wi-Fi. No router. No limits."</i>
   <br><br>
-  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:00e1ff,100:0055ff&height=120&section=footer"/>
+  <img src="https://capsule-render.vercel.app/api?type=waving&amp;color=0:00e1ff,100:0055ff&amp;height=120&amp;section=footer"/>
 </p>
