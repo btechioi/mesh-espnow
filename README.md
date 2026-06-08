@@ -128,11 +128,11 @@ void loop() {
 
 | Doc | What it covers |
 |-----|---------------|
-| [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) | Setup, flashing, first mesh |
-| [docs/API_REFERENCE.md](docs/API_REFERENCE.md) | Every function, type, config field |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | State machine, packet flow, internals |
-| [docs/PROTOCOL.md](docs/PROTOCOL.md) | On-wire format, packet types |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Production planning, scaling, troubleshooting |
+| [Getting Started](https://github.com/btechioi/mesh-espnow/wiki/Getting-Started) | Setup, flashing, first mesh |
+| [API Reference](https://github.com/btechioi/mesh-espnow/wiki/API-Reference) | Every function, type, config field |
+| [Architecture](https://github.com/btechioi/mesh-espnow/wiki/Architecture) | State machine, packet flow, internals |
+| [Protocol](https://github.com/btechioi/mesh-espnow/wiki/Protocol) | On-wire format, packet types |
+| [Deployment](https://github.com/btechioi/mesh-espnow/wiki/Deployment) | Production planning, scaling, troubleshooting |
 
 ---
 
