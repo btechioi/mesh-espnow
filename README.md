@@ -45,7 +45,9 @@
 
 ## Quick Start
 
-### 1. Add component to project
+### Option A: ESP-IDF
+
+#### 1. Add component to project
 
 ```
 your_project/
@@ -68,7 +70,7 @@ your_project/
             └── mesh_diag.c
 ```
 
-### 2. Minimal sensor node
+#### 2. Minimal sensor node
 
 ```c
 #include "mesh_espnow.h"
@@ -93,7 +95,7 @@ void app_main(void) {
 }
 ```
 
-### 3. Gateway node (network root)
+#### 3. Gateway node (network root)
 
 ```c
 mesh_espnow_config_t cfg = MESH_ESPNOW_CONFIG_DEFAULT();
@@ -105,13 +107,32 @@ ESP_ERROR_CHECK(mesh_espnow_init(&cfg));
 ESP_ERROR_CHECK(mesh_espnow_start());
 ```
 
-### 4. Build & flash
+#### 4. Build & flash
 
 ```bash
-cd components/mesh_espnow/examples/01_sensor_node
+cd examples/01_sensor_node
 idf.py set-target esp32c3
 idf.py build flash monitor
 ```
+
+### Option B: Arduino IDE
+
+#### 1. Install the library
+
+Copy the `mesh_espnow/` folder to `~/Arduino/libraries/`, or in PlatformIO add to `platformio.ini`:
+```ini
+lib_deps = https://github.com/btechioi/mesh-espnow
+```
+
+#### 2. Open an example
+
+**File → Examples → ESP-NOW Mesh Network Library → 01_sensor_node** or **02_gateway_node**.
+
+#### 3. Upload
+
+Select your board (ESP32, ESP32-C3, ESP32-S3, etc.) and port, then click **Upload**.
+
+The library uses the same C API (`mesh_espnow.h`). Use `setup()`/`loop()` instead of `app_main()`, and `delay(ms)`/`millis()` instead of FreeRTOS equivalents.
 
 ## API Reference
 
@@ -527,7 +548,7 @@ Best for: maximum reliability, ad-hoc deployment.
 - **No dynamic allocation after init**: neighbor/route/reliable tables are fixed-size arrays. Eviction uses metric-based worst-entry replacement.
 - **No blocking calls in RX path**: ESP-NOW receive callback does minimal work; heavy processing deferred to `mesh_espnow_process()`.
 - **Global mutex**: all public APIs lock before touching shared state. ISR context uses a separate minimal path.
-- **On-wire format**: type-length-value header with 32-bit node IDs. Absolute minimum overhead — 14 bytes for header + payload.
+- **On-wire format**: 24-byte header with 32-bit node IDs, sequence numbers, and subnet support. MIC tag adds 8 bytes when encryption is enabled.
 - **Encryption is optional**: if disabled, 8-byte MIC overhead is eliminated and throughput increases ~5%.
 
 ## License

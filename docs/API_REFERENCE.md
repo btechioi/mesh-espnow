@@ -12,37 +12,98 @@
 
 ---
 
-## Error Codes
+## Using with Arduino
 
-### `mesh_espnow_err_t`
+The library is fully compatible with the Arduino IDE and PlatformIO.
 
-Returned by all API functions. `ESP_OK` (0) = success.
+### Install
+1. Copy `mesh_espnow/` to your Arduino `libraries/` folder, OR
+2. In PlatformIO, add to `platformio.ini`:
+   ```ini
+   lib_deps = https://github.com/btechioi/mesh-espnow
+   ```
 
-```c
-typedef esp_err_t mesh_espnow_err_t;
+### Arduino sketch structure
+
+```cpp
+#include <Arduino.h>
+#include "mesh_espnow.h"
+
+// Callbacks
+void on_data(uint32_t src, const uint8_t *data, uint16_t len, int8_t rssi) {
+    Serial.printf("Data from 0x%08X: %.*s\n", src, len, data);
+}
+
+void setup() {
+    Serial.begin(115200);
+
+    mesh_espnow_config_t cfg = MESH_ESPNOW_CONFIG_DEFAULT();
+    cfg.channel = 6;
+    cfg.callbacks.on_data = on_data;
+
+    ESP_ERROR_CHECK(mesh_espnow_init(&cfg));
+    ESP_ERROR_CHECK(mesh_espnow_start());
+}
+
+void loop() {
+    mesh_espnow_process(millis());
+    delay(100);
+}
 ```
 
-| Constant | Value (ESP_ERROR_BASE +) | Meaning |
-|----------|--------------------------|---------|
+Use `setup()`/`loop()` instead of `app_main()`. Use `delay()` instead of `vTaskDelay()`.
+`ESP_ERROR_CHECK()` and `esp_err_t` work because Arduino ESP32 core bundles ESP-IDF.
+
+---
+
+## Error Codes
+
+Returned by most API functions. `ESP_OK` (0) = success.
+
+```c
+// Just use esp_err_t directly
+```
+
+| Constant | Value | Meaning |
+|----------|-------|---------|
 | `MESH_ESPNOW_ERR_INVALID_STATE` | 0x0061 | Wrong state for this operation (e.g., `send()` before `start()`) |
 | `MESH_ESPNOW_ERR_NO_ROUTE` | 0x0062 | No known path to destination; RREQ may be in progress |
 | `MESH_ESPNOW_ERR_RATE_LIMITED` | 0x0063 | RREQ sent too recently; waiting on exponential backoff |
 | `MESH_ESPNOW_ERR_NO_GATEWAY` | 0x0064 | No gateway known in the network |
 | `MESH_ESPNOW_ERR_DUPLICATE` | 0x0065 | Broadcast already seen (duplicate cache) |
-| `MESH_ESPNOW_ERR_INVALID_PARAM` | 0x0066 | NULL pointer, bad pointer, or out-of-range value |
-| `MESH_ESPNOW_ERR_PAYLOAD_TOO_BIG` | 0x0067 | Data exceeds max payload (226 encrypted / 234 plain) |
+| `MESH_ESPNOW_ERR_INVALID_PARAM` | 0x0066 | NULL pointer or out-of-range value |
+| `MESH_ESPNOW_ERR_PAYLOAD_TOO_BIG` | 0x0067 | Data exceeds `MESH_ESPNOW_MAX_PAYLOAD_LEN` (208 bytes) |
 | `MESH_ESPNOW_ERR_NOT_INITIALIZED` | 0x0068 | `mesh_espnow_init()` not called yet |
 | `MESH_ESPNOW_ERR_ALREADY_INIT` | 0x0069 | `mesh_espnow_init()` already called |
 | `MESH_ESPNOW_ERR_DECRYPT_FAILED` | 0x006A | MIC mismatch — wrong key or packet corruption |
-| `MESH_ESPNOW_ERR_CONFIG_INVALID` | 0x006B | Config validation failed (see error message) |
+| `MESH_ESPNOW_ERR_CONFIG_INVALID` | 0x006B | Config validation failed |
 
-Convert any error code to a human-readable string:
+Convert to string:
 
 ```c
-const char *mesh_espnow_err_to_str(mesh_espnow_err_t err);
+const char *msg = mesh_espnow_err_to_str(err);
 ```
 
-Returns strings like `"INVALID_STATE"`, `"NO_ROUTE"`, etc. Never returns NULL.
+---
+
+## Version Info
+
+```c
+const mesh_espnow_version_t* mesh_espnow_get_version(void);
+```
+
+Returns compile-time version, git SHA, and ESP-IDF version:
+
+```c
+typedef struct {
+    uint8_t  major;          // 3
+    uint8_t  minor;          // 0
+    uint8_t  patch;          // 0
+    uint32_t build_time;     // Unix timestamp
+    char     git_sha[16];    // Git commit hash (or "unknown")
+    char     idf_ver[32];    // ESP-IDF version
+} mesh_espnow_version_t;
+```
 
 ---
 
@@ -61,6 +122,12 @@ typedef enum {
 } mesh_espnow_state_t;
 ```
 
+Get human-readable name:
+
+```c
+const char *mesh_espnow_state_str(mesh_espnow_state_t state);
+```
+
 ### `mesh_espnow_power_mode_t`
 
 ```c
@@ -72,20 +139,54 @@ typedef enum {
 } mesh_espnow_power_mode_t;
 ```
 
+Get human-readable name:
+
+```c
+const char *mesh_espnow_power_mode_str(mesh_espnow_power_mode_t mode);
+```
+
+### `mesh_espnow_log_level_t`
+
+```c
+typedef enum {
+    MESH_ESPNOW_LOG_NONE    = 0,
+    MESH_ESPNOW_LOG_ERROR   = 1,
+    MESH_ESPNOW_LOG_WARN    = 2,
+    MESH_ESPNOW_LOG_INFO    = 3,  // default
+    MESH_ESPNOW_LOG_DEBUG   = 4,
+    MESH_ESPNOW_LOG_VERBOSE = 5,
+} mesh_espnow_log_level_t;
+```
+
 ### Capability flags
 
 ```c
-#define MESH_ESPNOW_CAP_GATEWAY  (1 << 0)  // Network root
-#define MESH_ESPNOW_CAP_ROUTER   (1 << 1)  // Forwards traffic
-#define MESH_ESPNOW_CAP_LEAF     (1 << 2)  // Battery-powered, no forwarding
-#define MESH_ESPNOW_CAP_SLEEPY   (1 << 3)  // May sleep at any time
+#define MESH_ESPNOW_CAP_GATEWAY   (1 << 0)  // Network root
+#define MESH_ESPNOW_CAP_ROUTER    (1 << 1)  // Forwards traffic
+#define MESH_ESPNOW_CAP_LEAF      (1 << 2)  // Battery-powered, no forwarding
+#define MESH_ESPNOW_CAP_SLEEPY    (1 << 3)  // May sleep at any time
+#define MESH_ESPNOW_CAP_STORE_FWD (1 << 4)  // Store-and-forward capable
+#define MESH_ESPNOW_CAP_BRIDGE    (1 << 5)  // Forwards between sub-networks
 ```
 
 Combine with bitwise OR:
 
 ```c
 cfg.capabilities = MESH_ESPNOW_CAP_ROUTER | MESH_ESPNOW_CAP_SLEEPY;
-// A router that also sleeps (wakes periodically)
+```
+
+---
+
+## Limits
+
+```c
+#define MESH_ESPNOW_MAX_PAYLOAD_LEN     208   // Max application payload per packet
+#define MESH_ESPNOW_MAX_HOPS             32   // Max route hop count
+#define MESH_ESPNOW_MAX_NEIGHBORS        32   // Default max neighbors
+#define MESH_ESPNOW_MAX_ROUTES           64   // Default max routes
+#define MESH_ESPNOW_MAX_RETX             16   // Max outstanding retransmissions
+#define MESH_ESPNOW_DUP_CACHE_SIZE      128   // Duplicate detection cache slots
+#define MESH_ESPNOW_PSK_LEN              16   // Pre-shared key length
 ```
 
 ---
@@ -94,66 +195,41 @@ cfg.capabilities = MESH_ESPNOW_CAP_ROUTER | MESH_ESPNOW_CAP_SLEEPY;
 
 ### `mesh_espnow_config_t`
 
-Defines everything about a node before `mesh_espnow_init()`. Fill it using:
+Defines everything about a node before `mesh_espnow_init()`.
 
 ```c
 mesh_espnow_config_t cfg = MESH_ESPNOW_CONFIG_DEFAULT();
 ```
 
-Then override the fields you care about.
+Override the fields you care about.
 
 #### Field reference
 
-| Field | Type | Default | Valid range | Description |
-|-------|------|---------|-------------|-------------|
-| `node_id` | `uint32_t` | 0 | any 32-bit | 0 = auto-generate from MAC OUI + unique suffix |
+| Field | Type | Default | Range | Description |
+|-------|------|---------|-------|-------------|
+| `node_id` | `uint32_t` | 0 | any 32-bit | 0 = auto-generate from MAC |
 | `gateway_mode` | `bool` | false | true/false | true = this node is a network root |
-| `capabilities` | `uint8_t` | `ROUTER\|SLEEPY` | bitmask | Advertised capabilities in beacons |
-| `channel` | `uint8_t` | 1 | 1-11 | Wi-Fi channel. **Must match all nodes.** |
-| `beacon_interval_ms` | `uint32_t` | 3000 | 100-60000 | How often to broadcast beacon (ms) |
-| `neighbor_timeout_ms` | `uint32_t` | 30000 | 5000-300000 | Forget neighbor after this silence (ms) |
-| `route_timeout_ms` | `uint32_t` | 60000 | 10000-600000 | Expire unused route after this (ms) |
-| `retransmit_timeout_ms` | `uint32_t` | 500 | 100-10000 | Wait for ACK before retry (ms) |
-| `power_mode` | `uint8_t` | DUTY_CYCLE | enum | ALWAYS_ON / DUTY_CYCLE / DEEP_SLEEP / DEEP_SLEEP_ON_DEMAND |
-| `deep_sleep_interval_ms` | `uint32_t` | 5000 | 100-600000 | Deep sleep timer duration (DEEP_SLEEP mode only) |
-| `awake_window_ms` | `uint32_t` | 200 | 20-5000 | How long to stay awake in duty cycle (ms) |
-| `max_retransmits` | `uint8_t` | 3 | 0-10 | Max retries per hop before giving up |
-| `ttl` | `uint8_t` | 32 | 1-64 | Max number of hops a packet can travel |
-| `max_neighbors` | `uint16_t` | 32 | 4-128 | Max entries in neighbor table |
-| `max_routes` | `uint16_t` | 64 | 8-256 | Max entries in route table |
-| `encryption_enabled` | `bool` | true | true/false | Enable AES-128-CCM per-packet |
-| `pre_shared_key` | `uint8_t[16]` | `"MESH-ESPNOW-MESH"` | 16 bytes | Network encryption key |
-| `enable_health_monitor` | `bool` | true | true/false | Track boot count, crashes via NVS |
-| `callbacks` | `mesh_espnow_callbacks_t` | all NULL | struct | Event callbacks (see below) |
-
-#### Default config macro
-
-```c
-#define MESH_ESPNOW_CONFIG_DEFAULT() {                      \
-    .node_id = 0,                                           \
-    .gateway_mode = false,                                  \
-    .capabilities = MESH_ESPNOW_CAP_ROUTER |                \
-                    MESH_ESPNOW_CAP_SLEEPY,                 \
-    .channel = 1,                                           \
-    .beacon_interval_ms = 3000,                             \
-    .neighbor_timeout_ms = 30000,                           \
-    .route_timeout_ms = 60000,                              \
-    .retransmit_timeout_ms = 500,                           \
-    .power_mode = MESH_ESPNOW_POWER_DUTY_CYCLE,            \
-    .deep_sleep_interval_ms = 5000,                         \
-    .awake_window_ms = 200,                                 \
-    .max_retransmits = 3,                                   \
-    .ttl = 32,                                              \
-    .max_neighbors = 32,                                    \
-    .max_routes = 64,                                       \
-    .encryption_enabled = true,                             \
-    .pre_shared_key = {0x4D,0x45,0x53,0x48,0x2D,0x45,0x53, \
-                       0x50,0x4E,0x4F,0x57,0x2D,0x4D,0x45, \
-                       0x53,0x48},  /* "MESH-ESPNOW-MESH" */ \
-    .enable_health_monitor = true,                          \
-    .callbacks = {0}                                        \
-}
-```
+| `capabilities` | `uint8_t` | `ROUTER\|SLEEPY` | bitmask | Advertised in every beacon |
+| `channel` | `uint8_t` | 1 | 1-11 | **All nodes must match** |
+| `beacon_interval_ms` | `uint32_t` | 3000 | 100-60000 | How often to beacon (ms) |
+| `neighbor_timeout_ms` | `uint32_t` | 30000 | 5000-300000 | Forget silent neighbors (ms) |
+| `route_timeout_ms` | `uint32_t` | 60000 | 10000-600000 | Expire unused routes (ms) |
+| `retransmit_timeout_ms` | `uint32_t` | 500 | 100-10000 | ACK timeout (ms) |
+| `power_mode` | enum | DUTY_CYCLE | enum | ALWAYS_ON / DUTY_CYCLE / DEEP_SLEEP / DEEP_SLEEP_ON_DEMAND |
+| `deep_sleep_interval_ms` | `uint32_t` | 5000 | 100-600000 | Deep sleep duration (ms) |
+| `awake_window_ms` | `uint32_t` | 200 | 20-5000 | Per-cycle awake time (ms) |
+| `max_retransmits` | `uint8_t` | 3 | 0-10 | Per-hop retries |
+| `ttl` | `uint8_t` | 32 | 1-64 | Max forwarding distance |
+| `max_neighbors` | `uint16_t` | 32 | 4-128 | Neighbor table size |
+| `max_routes` | `uint16_t` | 64 | 8-256 | Route table size |
+| `encryption_enabled` | `bool` | true | true/false | AES-128-CCM per-packet |
+| `pre_shared_key` | `uint8_t[16]` | `"MESH-ESPNOW-MESH"` | 16 bytes | Network key |
+| `subnet_id` | `uint8_t` | 0 | 0-255 | Logical sub-network |
+| `subnet_channel` | `uint8_t` | 0 | 0-11 | Dedicated subnet channel |
+| `bridge_subnets` | `uint8_t[4]` | {0} | per entry | Subnets this node bridges |
+| `bridge_interval_ms` | `uint16_t` | 0 | any | Ms per bridged channel |
+| `enable_health_monitor` | `bool` | true | true/false | Boot/crash tracking via NVS |
+| `callbacks` | struct | all NULL | — | Event handlers |
 
 ### Callbacks
 
@@ -173,20 +249,26 @@ typedef struct {
 } mesh_espnow_callbacks_t;
 ```
 
-#### Callback details
+| Callback | When it fires |
+|----------|---------------|
+| `on_data` | Unicast DATA received for this node |
+| `on_broadcast` | Network-wide broadcast received |
+| `on_node_discovered` | New neighbor in direct radio range |
+| `on_node_lost` | Neighbor timed out |
+| `on_network_joined` | Route to a gateway established (state → CONNECTED) |
+| `on_network_lost` | All gateway routes lost (state → DISCOVERING) |
+| `on_route_changed` | Route installed, switched, or metric changed |
+| `on_fatal_error` | Internal error — should trigger reinit |
 
-| Callback | When it fires | Called from |
-|----------|---------------|-------------|
-| `on_data` | Unicast DATA received for this node | `mesh_espnow_process()` |
-| `on_broadcast` | Broadcast received (first time only) | `mesh_espnow_process()` |
-| `on_node_discovered` | New neighbor seen via beacon or any packet | `mesh_espnow_process()` |
-| `on_node_lost` | Neighbor timed out (no beacon/packet for `neighbor_timeout_ms`) | `mesh_espnow_process()` |
-| `on_network_joined` | First route to a gateway established | `mesh_espnow_process()` |
-| `on_network_lost` | Last gateway route expired or lost | `mesh_espnow_process()` |
-| `on_route_changed` | Route installed, switched, metric changed, or backup promoted | `mesh_espnow_process()` |
-| `on_fatal_error` | Internal error (encryption failure, malloc fail, etc.) | `mesh_espnow_process()` |
+All callbacks run in the caller's context. Keep them short.
 
-All callbacks run in the context of the caller's `mesh_espnow_process()` call. Keep them short — don't block.
+### Config validation
+
+```c
+esp_err_t mesh_espnow_validate_config(const mesh_espnow_config_t *cfg, const char **err);
+```
+
+Pre-flight check without initializing. Returns `ESP_OK` if valid, `MESH_ESPNOW_ERR_CONFIG_INVALID` otherwise. Optionally get a human-readable error message via `*err`.
 
 ---
 
@@ -195,124 +277,82 @@ All callbacks run in the context of the caller's `mesh_espnow_process()` call. K
 ### `mesh_espnow_init()`
 
 ```c
-mesh_espnow_err_t mesh_espnow_init(const mesh_espnow_config_t *config);
+esp_err_t mesh_espnow_init(const mesh_espnow_config_t *config);
 ```
 
-**Purpose**: Initialize the mesh library. Must be called first.
+**State transition**: UNINIT → INIT. Must be called first.
 
 **Parameters**:
-- `config` — pointer to configuration struct. Not modified; can be stack-allocated.
+- `config` — pointer to config struct (not modified; can be stack-allocated). NULL = use defaults.
 
-**Returns**: `ESP_OK` or:
-- `MESH_ESPNOW_ERR_CONFIG_INVALID` — one or more config fields out of range
-- `MESH_ESPNOW_ERR_ALREADY_INIT` — already initialized
-- `ESP_ERR_NO_MEM` — memory allocation failed
-- Various ESP-IDF errors from Wi-Fi / ESP-NOW / NVS init
+**Returns**: `ESP_OK` or a specific error code.
 
-**What it does**:
-1. Validates all config fields (range checks)
-2. Initializes Wi-Fi in station mode (no AP)
-3. Initializes ESP-NOW
-4. Opens NVS (for health monitoring)
-5. Allocates neighbor table, route table, retransmit queue
-6. Initializes all subsystems (routing, reliable, security, power, diag)
-7. Transitions state to `INIT`
+**What it does**: Validates config, inits Wi-Fi + ESP-NOW + NVS, allocates tables, inits all subsystems.
 
 ---
 
 ### `mesh_espnow_start()`
 
 ```c
-mesh_espnow_err_t mesh_espnow_start(void);
+esp_err_t mesh_espnow_start(void);
 ```
 
-**Purpose**: Start mesh operation — begin beaconing and listening.
+**State transition**: INIT → DISCOVERING. Begins beaconing and neighbor discovery.
 
-**Returns**: `ESP_OK` or:
-- `MESH_ESPNOW_ERR_INVALID_STATE` — not in INIT state
-- Various ESP-IDF errors
-
-**What it does**:
-1. Adds ESP-NOW peers as discovered (on-demand, not all at once)
-2. Starts the beacon timer
-3. Transitions state to `DISCOVERING`
-4. Records boot timestamp
+**Returns**: `ESP_OK` or `MESH_ESPNOW_ERR_INVALID_STATE`.
 
 ---
 
 ### `mesh_espnow_stop()`
 
 ```c
-mesh_espnow_err_t mesh_espnow_stop(void);
+void mesh_espnow_stop(void);
 ```
 
-**Purpose**: Gracefully stop mesh operation. Sends a GOODBYE beacon.
-
-**Returns**: `ESP_OK` or `MESH_ESPNOW_ERR_INVALID_STATE` (not started).
-
-**What it does**:
-1. Broadcasts a GOODBYE packet (best-effort)
-2. Stops all timers
-3. Deinitializes Wi-Fi / ESP-NOW
-4. Clears neighbor and route tables
-5. Transitions state to `INIT`
+**State transition**: any → INIT. Sends GOODBYE, stops timers, deinits radio.
 
 ---
 
 ### `mesh_espnow_deinit()`
 
 ```c
-mesh_espnow_err_t mesh_espnow_deinit(void);
+void mesh_espnow_deinit(void);
 ```
 
-**Purpose**: Full teardown. Frees all memory. Returns to UNINITIALIZED state.
-
-**Returns**: `ESP_OK` (never fails).
-
-**What it does**:
-1. Calls `stop()` if running
-2. Frees all allocated tables
-3. Closes NVS
-4. Transitions state to `UNINITIALIZED`
+**State transition**: any → UNINIT. Full teardown, frees all memory.
 
 ---
 
 ### `mesh_espnow_factory_reset()`
 
 ```c
-mesh_espnow_err_t mesh_espnow_factory_reset(void);
+esp_err_t mesh_espnow_factory_reset(void);
 ```
 
-**Purpose**: Erase all NVS mesh data and reboot.
-
-**Returns**: Never returns — calls `esp_restart()`.
-
-**What it does**:
-1. Erases the NVS mesh namespace
-2. Calls `esp_restart()`
+Erases NVS mesh data and reboots. Does not return on success.
 
 ---
 
 ### `mesh_espnow_process()`
 
 ```c
-mesh_espnow_err_t mesh_espnow_process(uint64_t now_ms);
+void mesh_espnow_process(uint32_t now_ms);
 ```
 
-**Purpose**: Process all pending events. **Must call this regularly** — at least every 50-100ms.
+**Call every 50-100ms** in your main loop. Handles: packet RX/TX, beacon sending, neighbor/route expiry, route optimization, retransmissions, health logging.
 
 **Parameters**:
-- `now_ms` — current time in milliseconds (pass `esp_timer_get_time() / 1000` or equivalent)
+- `now_ms` — current time in ms (`esp_timer_get_time() / 1000` or `millis()` on Arduino)
 
-**Returns**: `ESP_OK` always.
+---
 
-**What it does** (in order):
-1. Process received packets (decrypt, dispatch, forward)
-2. Check ACK timeouts / trigger retransmissions
-3. Check beacon send timer
-4. Check neighbor / route expiry
-5. Run route optimization pass (every 15s)
-6. Log health diagnostics (every 30s)
+### `mesh_espnow_process_from_isr()`
+
+```c
+void mesh_espnow_process_from_isr(void);
+```
+
+Minimal ISR-safe path. Call from ESP-NOW receive ISR if handling ESP-NOW directly. Only enqueues packet for main-context processing.
 
 ---
 
@@ -321,230 +361,190 @@ mesh_espnow_err_t mesh_espnow_process(uint64_t now_ms);
 ### `mesh_espnow_send()`
 
 ```c
-mesh_espnow_err_t mesh_espnow_send(
-    uint32_t dest_id,
-    const uint8_t *data,
-    uint16_t len,
-    mesh_espnow_diag_t *diag);
+esp_err_t mesh_espnow_send(uint32_t dest_id, const uint8_t *data,
+                           uint16_t len, mesh_espnow_tx_diag_t *diag);
 ```
 
-**Purpose**: Send data to a specific node. Reliable (ACK + retransmit).
+Unicast to a specific node with ACK + retransmission. Auto-discovers route if needed.
 
 **Parameters**:
-- `dest_id` — target node ID (must exist in route table, or RREQ will be sent)
-- `data` — pointer to payload
-- `len` — payload length in bytes
-- `diag` — optional (can be NULL). Filled with send diagnostics (see below)
+- `dest_id` — destination node ID
+- `data` — payload
+- `len` — payload length (max `MESH_ESPNOW_MAX_PAYLOAD_LEN`)
+- `diag` — optional diagnostic output (may be NULL)
 
-**Returns**: `ESP_OK` on successful **submission** (not delivery). Or:
-- `MESH_ESPNOW_ERR_INVALID_STATE` — not in CONNECTED or DISCOVERING
-- `MESH_ESPNOW_ERR_INVALID_PARAM` — NULL data or len=0
-- `MESH_ESPNOW_ERR_PAYLOAD_TOO_BIG` — len > max payload
-- `MESH_ESPNOW_ERR_NOT_INITIALIZED` — init() not called
-
-**Note**: This is asynchronous. Delivery is reported via ACK at the reliable layer. Use `diag` to check per-call status.
-
----
+**Returns**: `ESP_OK` on successful submission (not delivery).
 
 ### `mesh_espnow_broadcast()`
 
 ```c
-mesh_espnow_err_t mesh_espnow_broadcast(
-    const uint8_t *data,
-    uint16_t len);
+esp_err_t mesh_espnow_broadcast(const uint8_t *data, uint16_t len);
 ```
 
-**Purpose**: Flood a message to every node in the network.
-
-**Parameters**:
-- `data` — pointer to payload
-- `len` — payload length
-
-**Returns**: Same as `mesh_espnow_send()`.
-
-**Note**: Delivered via flooding. Each node re-broadcasts once with TTL-1. Duplicate suppression prevents loops. No ACK for broadcasts.
-
----
+Network-wide flood with duplicate suppression.
 
 ### `mesh_espnow_send_to_gateway()`
 
 ```c
-mesh_espnow_err_t mesh_espnow_send_to_gateway(
-    const uint8_t *data,
-    uint16_t len);
+esp_err_t mesh_espnow_send_to_gateway(const uint8_t *data, uint16_t len);
 ```
 
-**Purpose**: Convenience wrapper — sends to the best-known gateway.
-
-**Returns**: Same as `mesh_espnow_send()` plus:
-- `MESH_ESPNOW_ERR_NO_GATEWAY` — no gateway known
-
----
+Sends to the best-known gateway.
 
 ### `mesh_espnow_discover_route()`
 
 ```c
-mesh_espnow_err_t mesh_espnow_discover_route(uint32_t dest_id);
+esp_err_t mesh_espnow_discover_route(uint32_t dest_id);
 ```
 
-**Purpose**: Proactively send an RREQ for a destination. Useful when you know you'll need a route soon.
+Proactive RREQ. Rate-limited with exponential backoff.
 
-**Parameters**:
-- `dest_id` — target node ID
+### `mesh_espnow_send_to_subnet()`
 
-**Returns**: `ESP_OK` or:
-- `MESH_ESPNOW_ERR_RATE_LIMITED` — RREQ already sent recently (wait for backoff)
-- `MESH_ESPNOW_ERR_INVALID_STATE` — not started
+```c
+esp_err_t mesh_espnow_send_to_subnet(uint32_t dest_id, uint8_t dest_subnet,
+                                     const uint8_t *data, uint16_t len);
+```
+
+Send to a node in a specific subnet (routes through bridge if needed).
+
+---
+
+## Bridge API
+
+### `mesh_espnow_bridge_add_subnet()`
+
+```c
+esp_err_t mesh_espnow_bridge_add_subnet(uint8_t subnet_id, uint8_t channel);
+```
+
+Add a subnet for this node to bridge.
+
+### `mesh_espnow_bridge_remove_subnet()`
+
+```c
+esp_err_t mesh_espnow_bridge_remove_subnet(uint8_t subnet_id);
+```
+
+Remove a subnet from the bridge list.
+
+### `mesh_espnow_get_subnet()`
+
+```c
+uint8_t mesh_espnow_get_subnet(void);
+```
+
+Get this node's subnet ID.
+
+---
+
+## Send Diagnostics
+
+```c
+typedef struct {
+    uint32_t dest_id;             // Where we tried to send
+    esp_err_t result;             // Result of the operation
+    uint32_t discovery_time_ms;   // Time spent waiting for route (0 if existed)
+    uint32_t tx_time_ms;          // Time from first TX to ACK
+    uint8_t  retries_used;        // How many retransmissions
+    uint8_t  hops_taken;          // Hop count of route used
+    int8_t   final_rssi;          // RSSI of last hop
+} mesh_espnow_tx_diag_t;
+```
+
+Pass to `mesh_espnow_send()` for per-call diagnostics.
+
+---
+
+## Data Structures
+
+### `mesh_espnow_route_t`
+
+```c
+typedef struct {
+    uint32_t node_id;           // Destination node ID
+    uint32_t next_hop;          // Next hop towards destination
+    uint8_t  hop_count;         // Distance in hops
+    int8_t   rssi;              // Signal strength of last packet
+    uint32_t last_seen_ms;      // When route was last used
+} mesh_espnow_route_t;
+```
+
+### `mesh_espnow_neighbor_t`
+
+```c
+typedef struct {
+    uint32_t node_id;           // Neighbor's node ID
+    int8_t   rssi;              // Average signal strength
+    int8_t   rssi_min;          // Worst RSSI observed
+    int8_t   rssi_max;          // Best RSSI observed
+    uint32_t last_seen_ms;      // Last heard timestamp
+    uint8_t  hop_count;         // Their distance to gateway
+    uint8_t  capabilities;      // Bitmask of mesh_espnow_capability_t
+    uint32_t uptime_s;          // Their reported uptime
+    uint8_t  subnet_id;         // Their subnet (0 = global)
+    uint8_t  subnet_channel;    // Their subnet's channel
+} mesh_espnow_neighbor_t;
+```
+
+### `mesh_espnow_stats_t`
+
+```c
+typedef struct {
+    uint32_t uptime_ms;             // ms since start()
+    uint32_t tx_packets;            // Total packets transmitted
+    uint32_t tx_bytes;              // Total payload bytes transmitted
+    uint32_t rx_packets;            // Total packets received (for us)
+    uint32_t rx_bytes;              // Total payload bytes received
+    uint32_t forwarded;             // Packets relayed for other nodes
+    uint32_t dropped;               // Packets we couldn't deliver
+    uint32_t retransmissions;       // Total retransmission attempts
+    uint32_t ack_sent;              // ACKs we generated
+    uint32_t ack_received;          // ACKs we received
+    uint32_t duplicates_detected;   // Duplicate packets suppressed
+    uint32_t rreqs_sent;            // Route discoveries initiated
+    uint32_t rreqs_received;        // Route requests heard
+    uint32_t rreps_sent;            // Route replies sent
+    uint32_t rreps_received;        // Route replies received
+    uint16_t neighbor_count;        // Current neighbor count
+    uint16_t route_count;           // Current route table size
+    int8_t   avg_rssi;              // Average RSSI of all neighbors
+    uint8_t  avg_hop_count;         // Average hop count to gateway
+    uint32_t gateway_id;            // Current gateway (0 if none)
+    uint32_t parent_id;             // Next hop to gateway (0 if none)
+    uint32_t battery_mv;            // Last reported battery voltage
+    uint32_t heap_free;             // Free heap at last check
+    uint32_t boot_count;            // Number of boots (from NVS)
+    uint32_t crash_count;           // Number of crashes detected
+    float    avg_tx_latency_ms;     // Average send-to-ACK latency
+    uint32_t peak_tx_latency_ms;    // Worst-case send-to-ACK latency
+} mesh_espnow_stats_t;
+```
 
 ---
 
 ## Info Query Functions
 
-### `mesh_espnow_get_node_id()`
-
-```c
-uint32_t mesh_espnow_get_node_id(void);
-```
-
-**Returns**: This node's 32-bit ID. 0 if not initialized.
-
-### `mesh_espnow_get_state()`
-
-```c
-mesh_espnow_state_t mesh_espnow_get_state(void);
-```
-
-**Returns**: Current state enum value (UNINITIALIZED, INIT, DISCOVERING, CONNECTED, SLEEPING, ERROR).
-
-### `mesh_espnow_get_stats()`
-
-```c
-mesh_espnow_err_t mesh_espnow_get_stats(mesh_espnow_stats_t *stats);
-```
-
-Fills the stats struct:
-
-```c
-typedef struct {
-    uint32_t   uptime_seconds;      // Time since start()
-    uint32_t   packets_sent;        // Total DATA packets sent
-    uint32_t   packets_received;    // Total DATA packets received
-    uint32_t   packets_forwarded;   // Packets forwarded for others
-    uint32_t   packets_lost;        // Packets not ACKed after max retries
-    uint32_t   packets_decrypt_failed;  // MIC verification failures
-    uint32_t   route_discoveries;   // RREQs sent
-    uint32_t   route_repairs;       // Backup routes promoted
-    int8_t     avg_rssi;            // Average RSSI of all neighbors
-    uint16_t   neighbor_count;      // Current neighbor count
-    uint16_t   route_count;         // Current route count
-    uint32_t   battery_mv;          // Last reported battery mV
-    uint8_t    hop_count;           // Hop count to nearest gateway
-} mesh_espnow_stats_t;
-```
-
-### `mesh_espnow_get_routes()`
-
-```c
-uint16_t mesh_espnow_get_routes(
-    mesh_espnow_route_info_t *routes,
-    uint16_t max);
-```
-
-Fills an array of route info:
-
-```c
-typedef struct {
-    uint32_t dest_id;       // Destination node
-    uint32_t next_hop;      // Next hop node ID
-    uint8_t  hops;          // Hop count
-    uint16_t metric;        // Route metric (lower = better)
-    bool     is_backup;     // true if this is the backup, false = primary
-} mesh_espnow_route_info_t;
-```
-
-**Returns**: Number of routes written (may be less than max).
-
-### `mesh_espnow_get_neighbors()`
-
-```c
-uint16_t mesh_espnow_get_neighbors(
-    mesh_espnow_neighbor_info_t *neighbors,
-    uint16_t max);
-```
-
-Fills an array of neighbor info:
-
-```c
-typedef struct {
-    uint32_t node_id;       // Neighbor's node ID
-    int8_t   rssi;          // Last heard RSSI
-    uint16_t metric;        // Route metric to this neighbor
-    uint8_t  capabilities;  // Advertised capabilities
-    uint32_t last_seen_ms;  // Milliseconds since last contact
-    uint16_t battery_mv;    // Last reported battery (0 = unknown)
-    uint8_t  pdr;           // Packet delivery rate 0-100
-} mesh_espnow_neighbor_info_t;
-```
-
-**Returns**: Number of neighbors written.
-
-### `mesh_espnow_get_parent()`
-
-```c
-uint32_t mesh_espnow_get_parent(void);
-```
-
-**Returns**: Node ID of the next hop toward the gateway, or 0 if no gateway route.
-
-### `mesh_espnow_get_gateway()`
-
-```c
-uint32_t mesh_espnow_get_gateway(void);
-```
-
-**Returns**: Node ID of the nearest gateway, or 0 if none known.
-
-### `mesh_espnow_is_healthy()`
-
-```c
-bool mesh_espnow_is_healthy(void);
-```
-
-**Returns**: `true` if state is CONNECTED with at least one neighbor and one gateway route. `false` otherwise.
+| Function | Return | Description |
+|----------|--------|-------------|
+| `mesh_espnow_get_node_id()` | `uint32_t` | This node's 32-bit ID (0 if not init) |
+| `mesh_espnow_get_state()` | `mesh_espnow_state_t` | Current state |
+| `mesh_espnow_get_stats(&stats)` | `esp_err_t` | Snapshot of all counters |
+| `mesh_espnow_get_routes(buf, max)` | `uint16_t` | Route table snapshot (count written) |
+| `mesh_espnow_get_neighbors(buf, max)` | `uint16_t` | Neighbor table snapshot (count written) |
+| `mesh_espnow_get_parent()` | `uint32_t` | Next hop to gateway (0 if none) |
+| `mesh_espnow_get_gateway()` | `uint32_t` | Gateway ID (0 if none) |
+| `mesh_espnow_is_healthy()` | `bool` | true if CONNECTED with neighbors + gateway |
+| `mesh_espnow_last_error()` | `const char*` | Description of last error |
 
 ---
 
 ## Diagnostics Functions
 
-### `mesh_espnow_last_error()`
-
-```c
-const char *mesh_espnow_last_error(void);
-```
-
-**Returns**: Description of the last error that occurred internally. Never returns NULL.
-
-### `mesh_espnow_diagnostic_scan()`
-
-```c
-void mesh_espnow_diagnostic_scan(void);
-```
-
-**Purpose**: Prints a full dump of all internal state to stdout via ESP_LOG. Includes:
-- Current state, uptime, node ID
-- Neighbor table (all entries with metrics)
-- Route table (all entries with metrics, primary/backup)
-- Send/receive/loss counts
-- Retransmit queue (pending entries)
-- Battery, RSSI, hop count
-
-### `mesh_espnow_reset_stats()`
-
-```c
-void mesh_espnow_reset_stats(void);
-```
-
-**Purpose**: Zeros all statistical counters (packets_sent, received, lost, etc.). Does not affect routes or neighbors.
+| Function | Description |
+|----------|-------------|
+| `mesh_espnow_diagnostic_scan()` | Full state dump to stdout via ESP_LOG |
+| `mesh_espnow_reset_stats()` | Zeros all statistical counters |
 
 ---
 
@@ -553,22 +553,14 @@ void mesh_espnow_reset_stats(void);
 ### `mesh_espnow_sleep()`
 
 ```c
-void mesh_espnow_sleep(void) __attribute__((noreturn));
+esp_err_t mesh_espnow_sleep(void);
 ```
 
-**Purpose**: Enter deep sleep. Does not return.
+Enter deep sleep. Sends GOODBYE, saves state, enters deep sleep.
+- DEEP_SLEEP mode: wakes after `deep_sleep_interval_ms` (timer)
+- DEEP_SLEEP_ON_DEMAND: wakes when any ESP-NOW packet arrives for this node
 
-**Wake behavior depends on power_mode**:
-- `DEEP_SLEEP`: wakes after `deep_sleep_interval_ms` (hardware timer)
-- `DEEP_SLEEP_ON_DEMAND`: wakes when any ESP-NOW packet arrives for this node. The wakeup packet is received automatically and delivered after re-init.
-
-**What it does**:
-1. Broadcasts GOODBYE (best-effort)
-2. Saves boot count to NVS
-3. Configures wake source (timer or ESP-NOW depending on mode)
-4. Calls `esp_deep_sleep_start()`
-
-**Note**: On wake, the ESP32 resets. Your `app_main()` will run again. Call `mesh_espnow_init()` and `mesh_espnow_start()` fresh. The packet that woke the node (if any) is processed during init and delivered via `on_data`.
+Does not return — the chip resets. On wake, call `init()` + `start()` again.
 
 ### `mesh_espnow_update_battery()`
 
@@ -576,146 +568,63 @@ void mesh_espnow_sleep(void) __attribute__((noreturn));
 void mesh_espnow_update_battery(uint32_t millivolts);
 ```
 
-**Purpose**: Report current battery voltage. Used by routing metric calculation (lower battery = worse metric, so traffic avoids this node).
-
-**Parameters**:
-- `millivolts` — battery voltage in mV (3000 = 3.0V, 0 = mains-powered)
+Report battery voltage for routing decisions. 0 = mains-powered.
 
 ### `mesh_espnow_estimate_life_s()`
 
 ```c
-uint64_t mesh_espnow_estimate_life_s(uint32_t battery_capacity_mAh);
+uint32_t mesh_espnow_estimate_life_s(uint32_t battery_capacity_mah);
 ```
 
-**Purpose**: Calculate theoretical battery life based on current power mode.
-
-**Parameters**:
-- `battery_capacity_mAh` — battery capacity in mAh
-
-**Returns**: Estimated lifetime in seconds.
+Theoretical battery life estimate based on current power mode.
 
 ---
 
-## Logging Functions
-
-### `mesh_espnow_set_log_level()`
+## Logging
 
 ```c
-void mesh_espnow_set_log_level(const char *subsystem, int level);
+void mesh_espnow_set_log_level(const char *subsystem, mesh_espnow_log_level_t level);
 ```
 
-**Purpose**: Set log verbosity for a specific subsystem.
-
-**Parameters**:
-- `subsystem` — one of: `"mesh"`, `"routing"`, `"reliable"`, `"power"`, `"security"`, `"diag"`
-- `level` — one of:
-  - `MESH_ESPNOW_LOG_NONE` — suppress all output
-  - `MESH_ESPNOW_LOG_ERROR` — errors only
-  - `MESH_ESPNOW_LOG_WARN` — errors + warnings
-  - `MESH_ESPNOW_LOG_INFO` — normal operational messages
-  - `MESH_ESPNOW_LOG_DEBUG` — verbose debugging
-
-**Example**:
+Subsystems: `"mesh"`, `"routing"`, `"reliable"`, `"power"`, `"security"`, `"diag"`
 
 ```c
 mesh_espnow_set_log_level("routing", MESH_ESPNOW_LOG_DEBUG);
-mesh_espnow_set_log_level("mesh", MESH_ESPNOW_LOG_WARN);
+mesh_espnow_set_log_level("mesh",    MESH_ESPNOW_LOG_WARN);
 ```
 
 ---
 
-## Config Validation
+## Thread Safety
 
-### `mesh_espnow_validate_config()`
-
-```c
-mesh_espnow_err_t mesh_espnow_validate_config(
-    const mesh_espnow_config_t *config);
-```
-
-**Purpose**: Pre-flight check without initializing. Useful to verify configuration before deployment.
-
-**Parameters**:
-- `config` — pointer to configuration to check
-
-**Returns**: `ESP_OK` if valid, or `MESH_ESPNOW_ERR_CONFIG_INVALID` with details logged.
-
-**Validates**:
-- `channel` ∈ [1, 11]
-- `beacon_interval_ms` ∈ [100, 60000]
-- `neighbor_timeout_ms` ≥ `beacon_interval_ms` × 2
-- `route_timeout_ms` ≥ `neighbor_timeout_ms`
-- `retransmit_timeout_ms` ∈ [100, 10000]
-- `deep_sleep_interval_ms` ∈ [100, 600000]
-- `awake_window_ms` ∈ [20, 5000]
-- `max_retransmits` ≤ 10
-- `ttl` ∈ [1, 64]
-- `max_neighbors` ∈ [4, 128]
-- `max_routes` ∈ [8, 256]
+- All public API functions are **thread-safe** (mutex-guarded)
+- Do **not** call from ISR context (use `mesh_espnow_process_from_isr()`)
+- Callbacks fire inside `mesh_espnow_process()` — keep them short
 
 ---
 
-## Send Diagnostics
-
-### `mesh_espnow_diag_t`
-
-```c
-typedef struct {
-    uint8_t  attempts;        // How many send attempts made
-    uint8_t  final_rssi;      // RSSI of last attempt (0 if unknown)
-    uint32_t latency_ms;      // Time from first send to ACK (0 if failed)
-    bool     acked;           // true if ACK received
-    uint8_t  hops;            // Hop count to destination
-} mesh_espnow_diag_t;
-```
-
-Pass to `mesh_espnow_send()` to get per-call diagnostics.
-
----
-
-## Thread Safety Notes
-
-- All public API functions are **thread-safe** (protected by a mutex)
-- Do **not** call `mesh_espnow_*()` functions from ISR context
-- Callbacks fire **inside** `mesh_espnow_process()`, in the caller's thread
-- Keep callbacks short — they hold the mutex
-
----
-
-## Example: Configuring Everything
+## Example: Full Configuration
 
 ```c
 #include "mesh_espnow.h"
 
-void app_main(void) {
+void app_main(void) {   // or setup() for Arduino
     mesh_espnow_config_t cfg = MESH_ESPNOW_CONFIG_DEFAULT();
 
-    // Identity
     cfg.node_id = 0xA1000042;                 // fixed ID (0 = auto)
-
-    // Network
     cfg.channel = 6;                          // all nodes must match
-    cfg.gateway_mode = false;                 // I'm not the root
-    memcpy(cfg.pre_shared_key, "CHANGE-ME-KEY!", 16);  // change default!
+    cfg.gateway_mode = false;
+    memcpy(cfg.pre_shared_key, "CHANGE-ME-KEY!", 16);
 
-    // Timing
     cfg.beacon_interval_ms = 5000;
     cfg.neighbor_timeout_ms = 60000;
     cfg.retransmit_timeout_ms = 300;
     cfg.max_retransmits = 5;
-
-    // Capacity
     cfg.max_neighbors = 64;
     cfg.max_routes = 128;
-
-    // Power
     cfg.power_mode = MESH_ESPNOW_POWER_DUTY_CYCLE;
-    cfg.capabilities = MESH_ESPNOW_CAP_ROUTER;
-
-    // Security
     cfg.encryption_enabled = true;
 
-    // Callbacks
     cfg.callbacks.on_data = my_data_callback;
     cfg.callbacks.on_node_discovered = my_discover_callback;
     cfg.callbacks.on_network_joined = my_joined_callback;
@@ -725,7 +634,7 @@ void app_main(void) {
 
     while (1) {
         mesh_espnow_process(esp_timer_get_time() / 1000);
-        vTaskDelay(pdMS_TO_TICKS(50));
+        vTaskDelay(pdMS_TO_TICKS(50));   // or delay(50)
     }
 }
 ```

@@ -9,7 +9,7 @@
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                    Application Layer                         │
-│  (your app_main.c — sensors, actuators, data processing)    │
+│  (your app_main.c / Arduino .ino — sensors, actuators, etc) │
 ├──────────────────────────────────────────────────────────────┤
 │                     mesh_espnow.h (API)                      │
 ├───────────────────────┬──────────────────┬──────────────────┤
@@ -22,18 +22,18 @@
 │  └────────┬────────┘  │                  │                  │
 │           │            │                  │                  │
 │  ┌────────┴────────┐  │  ┌────────────┐  │                  │
-│  │ mesh_routing.c  │◀─┼──│ mesh_reliable               │
-│  │ - route table   │  │  │ - ACK       │                  │
-│  │ - neighbor table│  │  │ - retransmit│                  │
-│  │ - metric        │  │  └────────────┘                  │
-│  │ - RREQ/RREP     │  │                                  │
-│  └────────┬────────┘  │                                  │
-│           │            │                                  │
-│  ┌────────┴────────┐  │                                  │
-│  │ mesh_security   │  │                                  │
-│  │ - AES-128-CCM   │  │                                  │
-│  │ - encrypt/decrypt│  │                                  │
-│  └─────────────────┘  │                                  │
+│  │ mesh_routing.c  │◀─┼──│mesh_reliable│  │                  │
+│  │ - route table   │  │  │ - ACK      │  │                  │
+│  │ - neighbor table│  │  │ - retransmit│  │                  │
+│  │ - metric        │  │  └────────────┘  │                  │
+│  │ - RREQ/RREP     │  │                  │                  │
+│  └────────┬────────┘  │                  │                  │
+│           │            │                  │                  │
+│  ┌────────┴────────┐  │                  │                  │
+│  │ mesh_security   │  │                  │                  │
+│  │ - AES-128-CCM   │  │                  │                  │
+│  │ - encrypt/decrypt│  │                  │                  │
+│  └─────────────────┘  │                  │                  │
 ├────────────────────────┴──────────────────────────────────┤
 │                   ESP-NOW (esp_now_*)                      │
 ├────────────────────────────────────────────────────────────┤
@@ -42,6 +42,14 @@
 │                   FreeRTOS + ESP-IDF                       │
 └────────────────────────────────────────────────────────────┘
 ```
+
+### Arduino compatibility
+
+The library is fully compatible with Arduino ESP32 core (which bundles ESP-IDF
+under the hood). All APIs are identical. Just replace:
+- `app_main()` → `setup()` / `loop()`
+- `vTaskDelay(ms)` → `delay(ms)`
+- `esp_timer_get_time() / 1000` → `millis()`
 
 ---
 
@@ -128,12 +136,12 @@
 
 | Transition | Trigger | What happens |
 |-----------|---------|-------------|
-| UNINIT → INIT | `init()` called | Wi-Fi + ESP-NOW + NVS initialized; config validated; subsystems initialized |
-| INIT → DISCOVERING | `start()` called | Beacon timer starts; state changes; we begin listening + announcing |
-| DISCOVERING → CONNECTED | Gateway route found | Via beacon receiving a gateway's beacon, or RREP from a node that knows a path |
-| CONNECTED → DISCOVERING | All gateway routes lost | Neighbor timeout, route timeout, or explicit GOODBYE from last gateway hop |
-| any → INIT | `stop()` called | Goodbye beacon sent (if possible); all timers stopped; radio deinitialized |
-| any → ERROR | Fatal internal failure | All subsystems stopped; `on_fatal_error()` callback invoked |
+| UNINIT → INIT | `init()` called | Wi-Fi + ESP-NOW + NVS initialized; config validated; subsystems inited |
+| INIT → DISCOVERING | `start()` called | Beacon timer starts; we begin listening + announcing |
+| DISCOVERING → CONNECTED | Gateway route found | Via beacon from gateway, or RREP from a node that knows a path |
+| CONNECTED → DISCOVERING | All gateway routes lost | Neighbor/route timeout, or GOODBYE from last gateway hop |
+| any → INIT | `stop()` called | Goodbye beacon sent; all timers stopped; radio deinitialized |
+| any → ERROR | Fatal internal failure | All subsystems stopped; `on_fatal_error()` invoked |
 | any → UNINIT | `deinit()` called | Full teardown; all memory freed; NVS closed |
 
 ---
@@ -148,18 +156,18 @@ app calls mesh_espnow_send(dest, data, len)
     ▼
 mesh_core_send_packet()  [core]
     │
-    ├── mesh_routing_lookup(dest)   →   next_hop_mac, primary_route
+    ├── mesh_routing_lookup(dest)   →   next_hop, primary_route
     │       │
     │       ├── Route found?        →   use it
     │       └── No route?           →   mesh_routing_send_rreq(dest)
     │                                      │
-    │                                      └── broadcast RREQ, start backoff timer
+    │                                      └── broadcast RREQ, start backoff
     │
     ├── mesh_security_encrypt(data) →   ciphertext + MIC tag
     │
     ├── mesh_reliable_start_tx(next_hop, packet)
     │       │
-    │       ├── Save packet in retransmit queue
+    │       ├── Save in retransmit queue
     │       ├── esp_now_send(next_hop_mac, encrypted_packet, len)
     │       └── Start ACK timer (retransmit_timeout_ms)
     │
@@ -169,11 +177,8 @@ mesh_core_send_packet()  [core]
 ### Receive Path (radio → application)
 
 ```
-esp_now_send_cb() or esp_now_recv_cb()  [ESP-NOW ISR]
-    │
-    ▼
-mesh_core_espnow_send_cb() / mesh_core_espnow_recv_cb()
-    │  (minimal work in ISR — just flags events)
+esp_now_recv_cb()  [ESP-NOW ISR]
+    │  (minimal work — just flags the event)
     │
     ▼
 mesh_espnow_process()  [called from app main loop]
@@ -183,24 +188,23 @@ mesh_espnow_process()  [called from app main loop]
     │       ├── mesh_security_decrypt()   →   plaintext or fail
     │       │
     │       ├── Check packet type:
-    │       │   ├── TYPE_DATA      →   for us? deliver via on_data callback
-    │       │   │                       not for us? mesh_routing_forward()
-    │       │   ├── TYPE_BROADCAST →   on_broadcast + re-broadcast (TTL-1, dup check)
+    │       │   ├── TYPE_DATA      →   for us? deliver via on_data
+    │       │   │                       not for us? forward to next hop
+    │       │   ├── TYPE_BROADCAST →   on_broadcast + re-broadcast (TTL-1)
     │       │   ├── TYPE_ACK      →   mesh_reliable_handle_ack()
     │       │   ├── TYPE_RREQ     →   mesh_routing_handle_rreq()
     │       │   ├── TYPE_RREP     →   mesh_routing_handle_rrep()
     │       │   ├── TYPE_BEACON   →   mesh_routing_handle_beacon()
-    │       │   └── TYPE_GOODBYE  →   mesh_routing_handle_goodbye()
+    │       │   └── TYPE_GOODBYE  →   remove neighbor, invalidate routes
     │       │
     │       └── Update stats (packets received, per-type counters)
     │
-    ├── Handle ACK timeout:
-    │       └── mesh_reliable_retransmit()   →   re-resolve route, re-send
+    ├── Handle ACK timeout & retransmission
     │
-    ├── Handle deferred work:
-    │       ├── Route optimization pass
-    │       ├── Neighbor / route expiry
-    │       └── Diagnostic logging
+    └── Handle deferred work:
+            ├── Route optimization pass
+            ├── Neighbor / route expiry
+            └── Diagnostic logging
 ```
 
 ---
@@ -213,17 +217,19 @@ All major data structures are **fixed-size arrays** allocated at init time:
 
 | Table | Entry size | Default count | Total memory |
 |-------|-----------|---------------|-------------|
-| Neighbor table | ~32 bytes | 32 | ~1 KB |
-| Route table | ~24 bytes | 64 | ~1.5 KB |
-| Retransmit queue | ~300 bytes | 8 | ~2.4 KB |
-| Duplicate cache | ~20 bytes | 16 | ~320 bytes |
-| **Total** | | | **~5 KB** |
+| Neighbor table | ~36 bytes | 32 | ~1.2 KB |
+| Route table | ~20 bytes | 64 | ~1.3 KB |
+| Retransmit queue | ~300 bytes | 16 | ~4.8 KB |
+| Duplicate cache | ~24 bytes | 128 | ~3.1 KB |
+| **Total** | | | **~10 KB** |
+
+Configurable at init via `cfg.max_neighbors` and `cfg.max_routes`.
 
 ### Eviction policy
 
 When tables fill up, the worst entry is evicted:
-- **Neighbor table**: neighbor with highest (worst) metric is replaced
-- **Route table**: route with highest metric is replaced
+- **Neighbor table**: highest-metric neighbor is replaced
+- **Route table**: highest-metric route is replaced
 - **Retransmit queue**: oldest pending transmission is dropped
 
 ---
@@ -234,9 +240,9 @@ When tables fill up, the worst entry is evicted:
 
 A single `SemaphoreHandle_t` protects all shared state:
 
-- **Held by**: all public API functions (`mesh_espnow_send()`, `mesh_espnow_get_stats()`, etc.)
+- **Held by**: all public API functions (`mesh_espnow_send()`, etc.)
 - **NOT held in**: ESP-NOW callbacks (ISR context) — they use a minimal lock-free path that defers work to `mesh_espnow_process()`
-- **Never held across blocking calls**: no delays or waits while holding the mutex
+- **Never held across blocking calls**
 
 ### Lock hierarchy
 
@@ -250,17 +256,16 @@ Process task → mutex → process deferred events
 
 ## Timer Architecture
 
+All timers are **cooperative** — polled in `mesh_espnow_process()`. No dynamic timers.
+
 | Timer | Period | Managed by | Purpose |
 |-------|--------|-----------|---------|
 | Beacon | `beacon_interval_ms` | `mesh_core.c` | Periodic "I'm here" broadcast |
-| Route opt | 15 seconds | `mesh_routing.c` | Re-evaluate all routes |
-| Neighbor expiry | checked every process call | `mesh_routing.c` | Remove stale neighbors |
-| Route expiry | checked every process call | `mesh_routing.c` | Remove stale routes |
+| Route optimization | 15 seconds | `mesh_routing.c` | Re-evaluate all routes |
+| Neighbor expiry | every process call | `mesh_routing.c` | Remove stale neighbors |
+| Route expiry | every process call | `mesh_routing.c` | Remove stale routes |
 | ACK timeout | `retransmit_timeout_ms` per packet | `mesh_reliable.c` | Retransmit if no ACK |
-| ACK watchdog | 500ms | `mesh_reliable.c` | Clean stuck entries |
 | Health log | 30 seconds | `mesh_diag.c` | Periodic stats dump |
-
-All timers are **cooperative** — they're polled in `mesh_espnow_process()`. No dynamic timer creation.
 
 ---
 
@@ -292,18 +297,16 @@ All timers are **cooperative** — they're polled in `mesh_espnow_process()`. No
 
 ---
 
-## Packet Handling
-
-### Forwarding (multi-hop)
+## Forwarding (multi-hop)
 
 When a node receives a DATA packet **not** addressed to it:
 
 1. Decrement TTL
-2. If TTL ≥ 0, look up destination in route table
+2. If TTL > 0, look up destination in route table
 3. If route exists, re-encrypt and forward to next hop
 4. If no route, silently drop
 
-Forwarding is automatic — you don't need to enable it explicitly. Just don't set `CAP_LEAF` if you want to forward.
+Forwarding is automatic. Don't set `CAP_LEAF` if you want to forward.
 
 ---
 

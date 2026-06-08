@@ -2,7 +2,7 @@
 
 > **No Wi-Fi network. No router. No internet. Just ESP32s talking to each other.**
 
-This guide gets a pair of ESP32 boards sending messages back and forth in under 10 minutes. If you've never used ESP-IDF before, start here.
+This guide gets a pair of ESP32 boards sending messages back and forth in under 10 minutes.
 
 ---
 
@@ -14,11 +14,12 @@ This guide gets a pair of ESP32 boards sending messages back and forth in under 
 |------|-------|
 | **2× ESP32 boards** | ESP32, ESP32-S3, ESP32-C3, ESP32-C6 — any ESP-NOW capable chip |
 | **USB cables** | One per board, for power + flashing |
-| **Breadboard + jumper wires** | Optional, for connecting sensors |
 
 Any ESP32 works. No external Wi-Fi router needed. The boards talk direct radio-to-radio.
 
-### Software
+### Software — Pick One
+
+#### Option A: ESP-IDF (traditional)
 
 | Tool | Why you need it | Install |
 |------|----------------|---------|
@@ -26,9 +27,15 @@ Any ESP32 works. No external Wi-Fi router needed. The boards talk direct radio-t
 | **Python 3.6+** | ESP-IDF needs it | Comes with ESP-IDF |
 | **git** | Version control | `sudo apt install git` (Linux) |
 
-### Test with a known-working setup
+#### Option B: Arduino IDE (simpler)
 
-These boards are confirmed to work:
+| Tool | Why you need it | Install |
+|------|----------------|---------|
+| **Arduino IDE 2.x** | The editor | [arduino.cc](https://www.arduino.cc/en/software) |
+| **ESP32 Arduino Core** | Board support | Follow [espressif/arduino-esp32 install guide](https://espressif.github.io/arduino-esp32/package_esp32_index.json) |
+
+### Confirmed working boards
+
 - ESP32-DevKitC (ESP-WROOM-32)
 - ESP32-C3-DevKitM-1
 - ESP32-S3-DevKitC-1
@@ -41,64 +48,61 @@ These boards are confirmed to work:
 ### 1. Get the code
 
 ```bash
-git clone <your-repo-url> mesh-project
+git clone https://github.com/btechioi/mesh-espnow.git mesh-project
 cd mesh-project
 ```
 
-### 2. Set up ESP-IDF
-
-If you haven't set up ESP-IDF yet:
+### 2a. ESP-IDF — Set up environment
 
 ```bash
-# Clone ESP-IDF (do this once)
-mkdir ~/esp
-cd ~/esp
-git clone --recursive https://github.com/espressif/esp-idf.git
-cd esp-idf
-./install.sh esp32c3   # or your target chip
-
-# Source the environment (run this in every new terminal)
+# Source ESP-IDF (run in every new terminal)
 . ~/esp/esp-idf/export.sh
 ```
+
+### 2b. Arduino IDE — Install the library
+
+1. **Arduino IDE 2**: Copy `mesh_espnow/` folder into `~/Arduino/libraries/`
+2. **PlatformIO**: Add this to `platformio.ini`:
+   ```ini
+   lib_deps = https://github.com/btechioi/mesh-espnow
+   ```
+3. Restart the IDE. Check that **File → Examples → ESP-NOW Mesh Network Library** appears.
 
 ### 3. Flash the gateway node
 
 The gateway is the "root" of the mesh — it's always on, always listening.
 
+#### ESP-IDF
 ```bash
 cd examples/02_gateway_node
-
-# Set your target chip
 idf.py set-target esp32c3
-
-# Build
 idf.py build
-
-# Connect your ESP32, then flash + monitor
 idf.py -p /dev/ttyACM0 flash monitor
 ```
 
-**Keep this terminal open.** The gateway is now running.
+#### Arduino IDE
+Open **File → Examples → ESP-NOW Mesh Network Library → 02_gateway_node**.
+Select your board and port, then click **Upload**.
+
+**Keep this terminal/serial monitor open.** The gateway is now running.
 
 ### 4. Flash the sensor node
 
-Open a **second terminal**. Connect your second ESP32.
+Connect your second ESP32 board.
 
+#### ESP-IDF
 ```bash
-# Source ESP-IDF in this terminal too
+# Open a second terminal, source ESP-IDF
 . ~/esp/esp-idf/export.sh
-
 cd examples/01_sensor_node
-
-# Same chip as gateway
 idf.py set-target esp32c3
-
-# Build
 idf.py build
-
-# Flash the second board (different port!)
 idf.py -p /dev/ttyACM1 flash monitor
 ```
+
+#### Arduino IDE
+Open **File → Examples → ESP-NOW Mesh Network Library → 01_sensor_node**.
+Select your second board's port, then click **Upload**.
 
 ### 5. Watch them talk
 
@@ -146,12 +150,12 @@ Distance too far for direct radio? Add a **router** in the middle.
 
 ### Router example
 
-Create `examples/03_router/main/router.c`:
+Create `examples/03_router/main/router.c` (or `03_router/03_router.ino` for Arduino):
 
 ```c
 #include "mesh_espnow.h"
 
-void app_main(void) {
+void app_main(void) {   // or setup() for Arduino
     mesh_espnow_config_t cfg = MESH_ESPNOW_CONFIG_DEFAULT();
     cfg.channel = 6;
     cfg.capabilities = MESH_ESPNOW_CAP_ROUTER;  // will forward traffic
@@ -160,14 +164,14 @@ void app_main(void) {
     ESP_ERROR_CHECK(mesh_espnow_init(&cfg));
     ESP_ERROR_CHECK(mesh_espnow_start());
 
-    while (1) {
+    while (1) {   // or loop() for Arduino
         mesh_espnow_process(esp_timer_get_time() / 1000);
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(100));   // or delay(100)
     }
 }
 ```
 
-No special forwarding code needed. The mesh library handles routing automatically. Flash this between the sensor and gateway, and traffic routes through it.
+No special forwarding code needed. The mesh library handles routing automatically.
 
 ---
 
@@ -175,7 +179,7 @@ No special forwarding code needed. The mesh library handles routing automaticall
 
 ### Change the channel
 
-All boards must use the same channel. Set it in `app_main()`:
+All boards must use the same channel:
 
 ```c
 cfg.channel = 6;    // valid: 1-11
@@ -185,13 +189,7 @@ Use 1, 6, or 11 — these don't overlap with each other.
 
 ### Change how often data is sent
 
-In `sensor_node.c`, find:
-
-```c
-vTaskDelay(pdMS_TO_TICKS(30000));  // 30 seconds
-```
-
-Change to whatever you want (5000 = 5 seconds).
+In the sensor example, adjust the loop counter threshold to change send frequency.
 
 ### Change the network password
 
@@ -209,10 +207,11 @@ memcpy(cfg.pre_shared_key, "MY-SECRET-KEY!!", 16);
 | Problem | Why | Fix |
 |---------|-----|-----|
 | "No neighbors found" | Wrong channel | All boards must use `cfg.channel = X` **with the same X** |
-| "esp_err_t not found" | ESP-IDF not set up | Run `. ~/esp/esp-idf/export.sh` |
-| "Can't open port /dev/ttyACM0" | Wrong port or permission | Run `ls /dev/tty*` to find your board; `sudo usermod -a -G dialout $USER` then log out/in |
+| "esp_err_t not found" | ESP-IDF not set up | Run `. ~/esp/esp-idf/export.sh` or switch to Arduino IDE |
+| "mesh_espnow.h not found" | Library not installed | Copy `mesh_espnow/` to Arduino `libraries/` folder |
+| Can't open port | Wrong port or permission | `ls /dev/tty*` to find your board; `sudo usermod -a -G dialout $USER` then log out/in |
 | Boards are 10m+ apart | ESP-NOW range is ~50m indoors | Move them closer or add a router node |
-| "Decryption failed" errors | Different PSK on different boards | Every board must use the same `pre_shared_key` |
+| "Decryption failed" | Different PSK on different boards | Every board must use the same `pre_shared_key` |
 | ESP32 reboots in a loop | Power supply too weak | Use a good USB cable; avoid cheap power banks |
 
 ---
@@ -244,4 +243,4 @@ memcpy(cfg.pre_shared_key, "MY-SECRET-KEY!!", 16);
 
 ---
 
-**Still stuck?** Open an issue at <repo-url>/issues.
+**Still stuck?** Open an issue at https://github.com/btechioi/mesh-espnow/issues.

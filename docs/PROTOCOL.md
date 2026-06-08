@@ -6,62 +6,82 @@
 
 ## Overview
 
-All packets are sent via ESP-NOW and share a common header. The maximum ESP-NOW payload is **240 bytes**.
+All packets are sent via ESP-NOW and share a common header. The maximum ESP-NOW payload is **250 bytes**; the mesh uses a max of **240 bytes** per packet.
 
 ### Packet Layout
 
 ```
 ┌───────────────────────────────────────────────────────┐
-│ Common Header (14 bytes)                               │
+│ Common Header (24 bytes)                               │
 ├───────────────────────────────────────────────────────┤
 │ Payload (variable, type-dependent)                     │
 ├───────────────────────────────────────────────────────┤
 │ [MIC Tag (8 bytes)] — only if encryption is enabled    │
 └───────────────────────────────────────────────────────┘
 
-Total: 14 + payload + (8 if encrypted) ≤ 240 bytes
-Max payload: 226 bytes (encrypted) or 234 bytes (plain)
+Total: 24 + payload + (8 if encrypted) ≤ 240 bytes
+Max payload: 208 bytes (always, independent of encryption)
 ```
 
 ---
 
-## Common Header (14 bytes)
+## Common Header (24 bytes)
 
 ```
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 ├───────┼───────┼───────┼───────┼───────┼───────┼───────┼───────┤
-│ proto_ver │ packet_type  │ reserved_1  │     ttl     │ hops   │
+│ proto_ver │ type  │  ttl  │            src_id               │
 ├───────┼───────┼───────┼───────┼───────┼───────┼───────┼───────┤
-│                         src_id                              │
+│                       dest_id                               │
 ├───────┼───────┼───────┼───────┼───────┼───────┼───────┼───────┤
-│                         dest_id                             │
+│                       seqno                                 │
+├───────┼───────┼───────┼───────┼───────┼───────┼───────┼───────┤
+│                      ack_seqno                              │
+├───────┼───────┼───────┼───────┼───────┼───────┼───────┼───────┤
+│  payload_len  │ flags │     subnet_id       │
 └───────┴───────┴───────┴───────┴───────┴───────┴───────┴───────┘
 ```
 
 | Offset | Size | Field | Description |
 |--------|------|-------|-------------|
-| 0 | 1 | `proto_ver` | Protocol version (`0x02`). Packets with mismatched version are silently dropped. |
-| 1 | 1 | `packet_type` | See [Packet Types](#packet-types) below |
-| 2 | 1 | `reserved_1` | Reserved for future use. Must be `0x00`. |
-| 3 | 1 | `ttl` | Time-To-Live. Decremented at each hop. Packet dropped when it reaches 0. |
-| 4 | 1 | `hops` | Number of hops traversed so far. Incremented at each hop. |
-| 5 | 4 | `src_id` | Source node ID (32-bit, network byte order). |
-| 9 | 4 | `dest_id` | Destination node ID (32-bit, network byte order). |
+| 0 | 1 | `proto_ver` | Protocol version (`0x03`). Mismatched versions are silently dropped. |
+| 1 | 1 | `type` | Packer type (see below) |
+| 2 | 1 | `ttl` | Time-To-Live. Decremented at each hop. Dropped at 0. |
+| 3 | 4 | `src_id` | Source node ID (32-bit) |
+| 7 | 4 | `dest_id` | Destination node ID (32-bit) |
+| 11 | 4 | `seqno` | Monotonically increasing sequence number |
+| 15 | 4 | `ack_seqno` | Sequence number being acknowledged (ACK packets) |
+| 19 | 2 | `payload_len` | Length of payload in bytes |
+| 21 | 1 | `flags` | Bitmask of packet flags (see below) |
+| 22 | 2 | `subnet_id` | Source's sub-network ID (0 = global) |
 
-### Header structure (mesh_priv.h)
+### Header structure (from mesh_priv.h)
 
 ```c
 typedef struct __attribute__((packed)) {
     uint8_t  proto_ver;
-    uint8_t  packet_type;
-    uint8_t  reserved_1;
+    uint8_t  type;
     uint8_t  ttl;
-    uint8_t  hops;
     uint32_t src_id;
     uint32_t dest_id;
-} mesh_packet_header_t;
+    uint32_t seqno;
+    uint32_t ack_seqno;
+    uint16_t payload_len;
+    uint8_t  flags;
+    uint16_t subnet_id;
+} mesh_espnow_header_t;
 ```
+
+### Flags byte
+
+| Bit | Constant | Meaning |
+|-----|----------|---------|
+| 0 | `MESH_FLAG_RREQ` | Packet is a route request (in DATA) |
+| 1 | `MESH_FLAG_RREP` | Packet is a route reply (in DATA) |
+| 2 | `MESH_FLAG_ACK` | This is an ACK packet |
+| 3 | `MESH_FLAG_CROSS_SUBNET` | Packet has crossed subnets (loop prevention) |
+| 7 | `MESH_FLAG_ENC` | Payload is encrypted |
 
 ---
 
@@ -69,127 +89,36 @@ typedef struct __attribute__((packed)) {
 
 | Value | Name | Direction | Description |
 |-------|------|-----------|-------------|
-| `0x01` | `MESH_PACKET_TYPE_DATA` | unicast | Application data with ACK |
-| `0x02` | `MESH_PACKET_TYPE_BROADCAST` | flood | Network-wide broadcast |
-| `0x03` | `MESH_PACKET_TYPE_ACK` | unicast | Acknowledgment for DATA |
-| `0x04` | `MESH_PACKET_TYPE_RREQ` | broadcast | Route request |
-| `0x05` | `MESH_PACKET_TYPE_RREP` | unicast | Route reply |
-| `0x06` | `MESH_PACKET_TYPE_BEACON` | broadcast | Periodic announcement |
-| `0x07` | `MESH_PACKET_TYPE_GOODBYE` | broadcast | Graceful departure |
+| `0x01` | `PKT_BEACON` | broadcast | Periodic "I'm here" announcement |
+| `0x02` | `PKT_DATA` | unicast | Application data with hop-by-hop ACK |
+| `0x03` | `PKT_DATA_ACK` | unicast | Acknowledgment for DATA |
+| `0x04` | `PKT_RREQ` | broadcast | Route request |
+| `0x05` | `PKT_RREP` | unicast | Route reply |
+| `0x06` | `PKT_BROADCAST` | flood | Network-wide flood |
+| `0x07` | `PKT_GOODBYE` | broadcast | Graceful departure |
 
 ---
 
 ## Payload Formats
 
-### DATA Packet (type `0x01`)
+### Beacon Packet (type `0x01`)
+
+Broadcast every `beacon_interval_ms`. This is how nodes discover each other.
 
 ```
 ┌───────────────────────────────────────────────────────┐
-│ Header (14 bytes)                                      │
-│   packet_type = 0x01                                   │
-│   dest_id = final destination                          │
+│ Header (24 bytes)                                      │
+│   type = 0x01   dest_id = 0xFFFFFFFF                   │
 ├───────────────────────────────────────────────────────┤
-│ Application payload (1 - 222 bytes)                    │
-└───────────────────────────────────────────────────────┘
-```
-
-- Sent via unicast (ESP-NOW peer = next hop, not necessarily dest_id)
-- Every hop re-encrypts and re-sends to the next hop
-- Requires ACK from the **next hop** (per-hop reliability)
-- Application payload is whatever you pass to `mesh_espnow_send()`
-
-### Broadcast Packet (type `0x02`)
-
-```
-┌───────────────────────────────────────────────────────┐
-│ Header (14 bytes)                                      │
-│   packet_type = 0x02                                   │
-│   dest_id = 0xFFFFFFFF (broadcast)                     │
-├───────────────────────────────────────────────────────┤
-│ Application payload (1 - 222 bytes)                    │
-├───────────────────────────────────────────────────────┤
-│ seq_num (4 bytes)  ─ duplicate suppression ID          │
-└───────────────────────────────────────────────────────┘
-```
-
-- Flooded through the network: every node re-broadcasts once (TTL decremented, dup check)
-- Duplicate suppression via `(src_id, seq_num)` cache
-- Common uses: OTA triggers, alarm signals, configuration updates
-
-### ACK Packet (type `0x03`)
-
-```
-┌───────────────────────────────────────────────────────┐
-│ Header (14 bytes)                                      │
-│   packet_type = 0x03                                   │
-│   dest_id = original sender's src_id                   │
-├───────────────────────────────────────────────────────┤
-│ ack_seq (4 bytes)  ─ sequence number being ACKed      │
-└───────────────────────────────────────────────────────┘
-```
-
-- Minimal 4-byte payload (just the sequence number being acknowledged)
-- Always sent unicast back to the sender
-- **Not encrypted** (must be verifiable even by intermediate nodes)
-- **Note**: The reliable layer handles ACK matching. If no ACK arrives within `retransmit_timeout_ms`, the sender retransmits.
-
-### RREQ Packet (type `0x04`)
-
-```
-┌───────────────────────────────────────────────────────┐
-│ Header (14 bytes)                                      │
-│   packet_type = 0x04                                   │
-│   dest_id = 0xFFFFFFFF (broadcast)                     │
-├───────────────────────────────────────────────────────┤
-│ target_id (4 bytes)  ─ destination we're looking for  │
-│ metric (2 bytes)     ─ current metric to source        │
-└───────────────────────────────────────────────────────┘
-```
-
-- Broadcast to all neighbors
-- Every node that receives it **learns a reverse route** back to `src_id`
-- If this node **is** `target_id` or **has a route** to `target_id`, it replies with RREP
-- Otherwise, re-broadcasts (if TTL > 0 and not already seen this RREQ)
-- **Rate-limited**: max one RREQ per destination per second (exponential backoff)
-
-### RREP Packet (type `0x05`)
-
-```
-┌───────────────────────────────────────────────────────┐
-│ Header (14 bytes)                                      │
-│   packet_type = 0x05                                   │
-│   dest_id = original RREQ sender (src_id from RREQ)    │
-├───────────────────────────────────────────────────────┤
-│ target_id (4 bytes)  ─ the destination                  │
-│ hop_count (1 byte)   ─ hops from replying node to dest │
-│ metric (2 bytes)     ─ metric from replying node to dest│
-└───────────────────────────────────────────────────────┘
-```
-
-- Sent unicast back along the reverse route established by the RREQ
-- Each hop installs a forward route to `target_id`
-- `hop_count` + `metric` let the RREQ originator compare multiple route options
-- The first RREP wins (for primary route); subsequent RREPs may become the backup
-
-### Beacon Packet (type `0x06`)
-
-```
-┌───────────────────────────────────────────────────────┐
-│ Header (14 bytes)                                      │
-│   packet_type = 0x06                                   │
-│   dest_id = 0xFFFFFFFF (broadcast)                     │
-├───────────────────────────────────────────────────────┤
-│ capabilities (1 byte)   ─ bitmask of node capabilities │
-│ gw_hops (1 byte)        ─ hop count to nearest gateway│
-│ gw_id (4 bytes)         ─ gateway node ID (0 if none)  │
-│ uptime_s (4 bytes)      ─ seconds since boot           │
-│ battery_mv (4 bytes)    ─ battery in millivolts        │
+│ capabilities (1 byte)   — bitmask of node capabilities │
+│ gw_hops (1 byte)        — hop count to nearest gateway │
+│ gw_id (4 bytes)         — gateway node ID (0 if none)  │
+│ uptime_s (4 bytes)      — seconds since boot           │
+│ battery_mv (4 bytes)    — battery in millivolts        │
 └───────────────────────────────────────────────────────┘
 ```
 
 **Total beacon payload: 14 bytes**
-
-Broadcast every `beacon_interval_ms`. This is how nodes discover each other and learn the network topology.
 
 #### Capabilities byte
 
@@ -197,24 +126,119 @@ Broadcast every `beacon_interval_ms`. This is how nodes discover each other and 
 |-----|------|---------|
 | 0 | `MESH_ESPNOW_CAP_GATEWAY` | This node is a network root |
 | 1 | `MESH_ESPNOW_CAP_ROUTER` | This node forwards traffic |
-| 2 | `MESH_ESPNOW_CAP_LEAF` | This node does NOT forward (battery saver) |
-| 3 | `MESH_ESPNOW_CAP_SLEEPY` | This node may sleep at any time |
+| 2 | `MESH_ESPNOW_CAP_LEAF` | Battery-powered, doesn't forward |
+| 3 | `MESH_ESPNOW_CAP_SLEEPY` | May sleep at any time |
+| 4 | `MESH_ESPNOW_CAP_STORE_FWD` | Store-and-forward capable |
+| 5 | `MESH_ESPNOW_CAP_BRIDGE` | Forwards between sub-networks |
+
+---
+
+### DATA Packet (type `0x02`)
+
+```
+┌───────────────────────────────────────────────────────┐
+│ Header (24 bytes)                                      │
+│   type = 0x02   dest_id = final destination            │
+├───────────────────────────────────────────────────────┤
+│ Application payload (1 - 208 bytes)                    │
+└───────────────────────────────────────────────────────┘
+```
+
+- Sent via unicast (ESP-NOW peer = next hop, not necessarily dest_id)
+- Every hop re-encrypts and forwards to the next hop
+- Requires ACK from the **next hop** (per-hop reliability)
+
+---
+
+### ACK Packet (type `0x03`)
+
+```
+┌───────────────────────────────────────────────────────┐
+│ Header (24 bytes)                                      │
+│   type = 0x03   dest_id = original sender's src_id     │
+│   ack_seqno = sequence number being ACKed              │
+├───────────────────────────────────────────────────────┤
+│ (no payload — ack_seqno is in the header)              │
+└───────────────────────────────────────────────────────┘
+```
+
+- 0 bytes of payload (acknowledgment info is in the header)
+- Always sent unicast back to the sender
+- **Not encrypted** (must be verifiable by intermediate nodes)
+- If no ACK within `retransmit_timeout_ms`, sender retransmits
+
+---
+
+### RREQ Packet (type `0x04`)
+
+```
+┌───────────────────────────────────────────────────────┐
+│ Header (24 bytes)                                      │
+│   type = 0x04   dest_id = 0xFFFFFFFF (broadcast)      │
+├───────────────────────────────────────────────────────┤
+│ target_id (4 bytes)  — destination we're looking for  │
+│ metric (2 bytes)     — current metric to source        │
+└───────────────────────────────────────────────────────┘
+```
+
+- Broadcast to all neighbors
+- Every node that receives it **learns a reverse route** back to `src_id`
+- If this node **is** `target_id` or **has a route** to it, it replies with RREP
+- Otherwise, re-broadcasts (if TTL > 0 and not already seen)
+- **Rate-limited**: exponential backoff (1s → 2s → 4s → 8s → 10s cap)
+
+---
+
+### RREP Packet (type `0x05`)
+
+```
+┌───────────────────────────────────────────────────────┐
+│ Header (24 bytes)                                      │
+│   type = 0x05   dest_id = original RREQ sender         │
+├───────────────────────────────────────────────────────┤
+│ target_id (4 bytes)  — the destination                  │
+│ hop_count (1 byte)   — hops from replying node to dest │
+│ metric (2 bytes)     — metric from replying node to dest│
+└───────────────────────────────────────────────────────┘
+```
+
+- Sent unicast back along the reverse route established by the RREQ
+- Each hop installs a forward route to `target_id`
+- First RREP wins (primary); subsequent RREPs may become the backup
+
+---
+
+### Broadcast Packet (type `0x06`)
+
+```
+┌───────────────────────────────────────────────────────┐
+│ Header (24 bytes)                                      │
+│   type = 0x06   dest_id = 0xFFFFFFFF                   │
+├───────────────────────────────────────────────────────┤
+│ Application payload (1 - 208 bytes)                    │
+└───────────────────────────────────────────────────────┘
+```
+
+- Flooded through the network: every node re-broadcasts once (TTL-1, dup check)
+- Duplicate suppression via `(src_id, seqno)` cache (128 slots)
+- Common uses: OTA triggers, alarm signals, configuration updates
+
+---
 
 ### GOODBYE Packet (type `0x07`)
 
 ```
 ┌───────────────────────────────────────────────────────┐
-│ Header (14 bytes)                                      │
-│   packet_type = 0x07                                   │
-│   dest_id = 0xFFFFFFFF (broadcast)                     │
+│ Header (24 bytes)                                      │
+│   type = 0x07   dest_id = 0xFFFFFFFF                   │
 ├───────────────────────────────────────────────────────┤
 │ (no payload)                                           │
 └───────────────────────────────────────────────────────┘
 ```
 
 - Broadcast before stopping or sleeping
-- Recipients immediately remove this node from their neighbor table and invalidate any routes through it
-- 0 bytes of payload (just the header)
+- Recipients immediately remove this node from neighbor table and invalidate routes
+- 0 bytes of payload
 
 ---
 
@@ -223,7 +247,7 @@ Broadcast every `beacon_interval_ms`. This is how nodes discover each other and 
 - Monotonically increasing per node (starts at 1)
 - 32-bit, wraps around safely
 - Used for:
-  - **ACK matching**: sender matches ACK to original packet
+  - **ACK matching**: sender matches ACK to original packet via `ack_seqno`
   - **Duplicate suppression**: broadcast flood prevention
   - **Ordering**: application can detect out-of-order delivery
 
@@ -231,46 +255,28 @@ Broadcast every `beacon_interval_ms`. This is how nodes discover each other and 
 
 ## Encryption (AES-128-CCM)
 
-### When enabled
-
-The entire packet (header + payload) is encrypted:
-
-```
-Plaintext on wire:
-┌─────────────┬──────────────┬──────────────┐
-│ Header (14) │ Payload (N)  │ MIC tag (8)  │
-└─────────────┴──────────────┴──────────────┘
-
-After encryption:
-┌─────────────────────────┬──────────────┐
-│ Ciphertext (14 + N)     │ MIC tag (8)  │
-└─────────────────────────┴──────────────┘
-```
-
-Wait — actually, looking at the code more carefully, only the payload is encrypted, not the header. The header is sent in plaintext so intermediate nodes can read `dest_id` for forwarding. Let me correct this:
-
-### Encryption scope
+### Scope
 
 ```
 Wire format (encryption enabled):
 ┌─────────────┬─────────────────────────┬──────────────┐
-│ Header (14) │ Ciphertext (payload)    │ MIC tag (8)  │
+│ Header (24) │ Ciphertext (payload)    │ MIC tag (8)  │
 │ plaintext   │ encrypted with AES-128  │              │
 └─────────────┴─────────────────────────┴──────────────┘
 
 Wire format (encryption disabled):
 ┌─────────────┬───────────────────────┐
-│ Header (14) │ Payload (plaintext)   │
-│ plaintext   │                       │
+│ Header (24) │ Payload (plaintext)   │
 └─────────────┴───────────────────────┘
 ```
 
+Only the payload is encrypted, not the header. Intermediate nodes need the header in plaintext for forwarding.
+
 ### MIC scope
 
-The MIC tag authenticates: `header + ciphertext`. If the MIC doesn't match at the destination:
+The MIC tag authenticates: `header + ciphertext`. If MIC doesn't match at the destination:
 1. The packet is silently dropped
 2. `on_data` is never called
-3. Destination may send a NACK (future feature)
 
 ### Nonce construction
 
@@ -283,8 +289,7 @@ Total nonce: 12 bytes (standard for CCM)
 
 - 16-byte pre-shared key
 - Same key on every node in the mesh
-- Default: `"MESH-ESPNOW-MESH"`
-- **Change for production**
+- Default: `"MESH-ESPNOW-MESH"` — **change for production**
 
 ---
 
@@ -303,16 +308,16 @@ Node A wants to send to Node D (not in route table)
     │   ├── B knows route to D? YES
     │   │   └── Unicast RREP back to A:
     │   │       └── target=D, hop_count=2, metric=55
-    │   └── B re-broadcasts RREQ? NO (has route, so replies instead)
+    │   └── B does NOT re-broadcast (replies instead)
     │
     │   Neighbor C receives RREQ:
     │   ├── Learns reverse route to A via C's own MAC
     │   ├── C knows route to D? NO
     │   └── C re-broadcasts RREQ (TTL-1)
-    │       └── ... eventually reaches D or a node with a route to D
+    │       └── ... eventually reaches D or a node with a route
     │
     ├── RREP arrives at A from B
-    │   ├── Installs primary route to D: next_hop=B, hops=3 (A→B→x→D)
+    │   ├── Installs primary route to D: next_hop=B
     │   └── State: now has route to D
     │
     └── A can now send DATA to D via next hop B
@@ -326,14 +331,14 @@ Node A wants to send to Node D (not in route table)
 
 | Reason | Log tag | Action |
 |--------|---------|--------|
-| Version mismatch | `mesh` | Silently drop |
-| Hop limit exceeded | `mesh` | Silently drop |
-| Decryption failure (MIC) | `security` | Silently drop |
-| Duplicate broadcast | `mesh` | Silently drop |
-| No route for forwarding | `routing` | Silently drop |
-| Neighbor table full | `routing` | Evict worst neighbor |
-| Route table full | `routing` | Evict worst route |
-| Retransmit queue full | `reliable` | Drop oldest pending |
+| Version mismatch | mesh | Silently drop |
+| TTL exceeded | mesh | Silently drop |
+| Decryption failure (MIC) | security | Silently drop |
+| Duplicate broadcast | mesh | Silently drop |
+| No route for forwarding | routing | Silently drop |
+| Neighbor table full | routing | Evict worst neighbor |
+| Route table full | routing | Evict worst route |
+| Retransmit queue full | reliable | Drop oldest pending |
 
 ---
 
@@ -341,6 +346,6 @@ Node A wants to send to Node D (not in route table)
 
 | Protocol version | Library version | Notes |
 |-----------------|----------------|-------|
-| `0x02` | v3.x | Current. All nodes must use same version. |
+| `0x03` | v3.x | Current. All nodes must use same version. |
 
-Nodes with mismatched `proto_ver` **silently ignore each other's packets**. This means you can have separate meshes on the same channel with different protocol versions.
+Nodes with mismatched `proto_ver` **silently ignore each other's packets**.
