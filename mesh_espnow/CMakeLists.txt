@@ -1,0 +1,18 @@
+idf_component_register(
+    SRCS
+        "src/mesh_core.c"
+        "src/mesh_routing.c"
+        "src/mesh_reliable.c"
+        "src/mesh_power.c"
+        "src/mesh_security.c"
+        "src/mesh_diag.c"
+    INCLUDE_DIRS
+        "include"
+    REQUIRES
+        nvs_flash
+        esp_now
+        esp_wifi
+        esp_timer
+        esp_sleep
+        mbedtls
+)

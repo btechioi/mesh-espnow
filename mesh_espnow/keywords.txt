@@ -1,0 +1,94 @@
+########################################
+# Keywords for ESP-NOW Mesh Library
+########################################
+
+########################################
+# Datatypes (KEYWORD1)
+########################################
+mesh_espnow_config_t	KEYWORD1
+mesh_espnow_callbacks_t	KEYWORD1
+mesh_espnow_stats_t	KEYWORD1
+mesh_espnow_route_t	KEYWORD1
+mesh_espnow_neighbor_t	KEYWORD1
+mesh_espnow_tx_diag_t	KEYWORD1
+mesh_espnow_version_t	KEYWORD1
+
+########################################
+# Methods and Functions (KEYWORD2)
+########################################
+mesh_espnow_init	KEYWORD2
+mesh_espnow_start	KEYWORD2
+mesh_espnow_stop	KEYWORD2
+mesh_espnow_deinit	KEYWORD2
+mesh_espnow_factory_reset	KEYWORD2
+mesh_espnow_process	KEYWORD2
+mesh_espnow_process_from_isr	KEYWORD2
+mesh_espnow_send	KEYWORD2
+mesh_espnow_broadcast	KEYWORD2
+mesh_espnow_send_to_gateway	KEYWORD2
+mesh_espnow_discover_route	KEYWORD2
+mesh_espnow_send_to_subnet	KEYWORD2
+mesh_espnow_bridge_add_subnet	KEYWORD2
+mesh_espnow_bridge_remove_subnet	KEYWORD2
+mesh_espnow_get_subnet	KEYWORD2
+mesh_espnow_sleep	KEYWORD2
+mesh_espnow_update_battery	KEYWORD2
+mesh_espnow_estimate_life_s	KEYWORD2
+mesh_espnow_get_node_id	KEYWORD2
+mesh_espnow_get_state	KEYWORD2
+mesh_espnow_get_stats	KEYWORD2
+mesh_espnow_get_routes	KEYWORD2
+mesh_espnow_get_neighbors	KEYWORD2
+mesh_espnow_get_parent	KEYWORD2
+mesh_espnow_get_gateway	KEYWORD2
+mesh_espnow_is_healthy	KEYWORD2
+mesh_espnow_last_error	KEYWORD2
+mesh_espnow_reset_stats	KEYWORD2
+mesh_espnow_diagnostic_scan	KEYWORD2
+mesh_espnow_validate_config	KEYWORD2
+mesh_espnow_set_log_level	KEYWORD2
+mesh_espnow_err_to_str	KEYWORD2
+mesh_espnow_power_mode_str	KEYWORD2
+mesh_espnow_state_str	KEYWORD2
+mesh_espnow_get_version	KEYWORD2
+
+########################################
+# Constants (LITERAL1)
+########################################
+MESH_ESPNOW_CONFIG_DEFAULT	LITERAL1
+MESH_ESPNOW_MAX_PAYLOAD_LEN	LITERAL1
+MESH_ESPNOW_MAX_HOPS	LITERAL1
+MESH_ESPNOW_MAX_NEIGHBORS	LITERAL1
+MESH_ESPNOW_MAX_ROUTES	LITERAL1
+MESH_ESPNOW_ADDR_LEN	LITERAL1
+MESH_ESPNOW_PSK_LEN	LITERAL1
+
+########################################
+# Enums (KEYWORD1)
+########################################
+MESH_ESPNOW_POWER_ALWAYS_ON	KEYWORD1
+MESH_ESPNOW_POWER_DUTY_CYCLE	KEYWORD1
+MESH_ESPNOW_POWER_DEEP_SLEEP	KEYWORD1
+MESH_ESPNOW_POWER_DEEP_SLEEP_ON_DEMAND	KEYWORD1
+
+MESH_ESPNOW_STATE_UNINITIALIZED	KEYWORD1
+MESH_ESPNOW_STATE_INIT	KEYWORD1
+MESH_ESPNOW_STATE_DISCOVERING	KEYWORD1
+MESH_ESPNOW_STATE_CONNECTED	KEYWORD1
+MESH_ESPNOW_STATE_SLEEPING	KEYWORD1
+MESH_ESPNOW_STATE_ERROR	KEYWORD1
+
+MESH_ESPNOW_CAP_NONE	KEYWORD1
+MESH_ESPNOW_CAP_GATEWAY	KEYWORD1
+MESH_ESPNOW_CAP_ROUTER	KEYWORD1
+MESH_ESPNOW_CAP_LEAF	KEYWORD1
+MESH_ESPNOW_CAP_SLEEPY	KEYWORD1
+MESH_ESPNOW_CAP_STORE_FWD	KEYWORD1
+MESH_ESPNOW_CAP_BRIDGE	KEYWORD1
+
+MESH_ESPNOW_LOG_NONE	KEYWORD1
+MESH_ESPNOW_LOG_ERROR	KEYWORD1
+MESH_ESPNOW_LOG_WARN	KEYWORD1
+MESH_ESPNOW_LOG_INFO	KEYWORD1
+MESH_ESPNOW_LOG_DEBUG	KEYWORD1
+MESH_ESPNOW_LOG_VERBOSE	KEYWORD1

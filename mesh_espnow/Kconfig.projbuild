@@ -1,0 +1,58 @@
+menu "ESP-NOW Mesh Network Library"
+
+    config MESH_ESPNOW_MAX_PAYLOAD
+        int "Maximum payload per packet"
+        default 240
+        range 64 240
+
+    config MESH_ESPNOW_MAX_NEIGHBORS
+        int "Maximum neighbors"
+        default 32
+        range 4 128
+
+    config MESH_ESPNOW_MAX_ROUTES
+        int "Maximum routes"
+        default 64
+        range 8 256
+
+    config MESH_ESPNOW_CHANNEL
+        int "Default Wi-Fi channel"
+        default 1
+        range 1 11
+
+    config MESH_ESPNOW_BEACON_INTERVAL
+        int "Default beacon interval (ms)"
+        default 3000
+        range 100 60000
+
+    config MESH_ESPNOW_NEIGHBOR_TIMEOUT
+        int "Neighbor timeout (ms)"
+        default 30000
+        range 5000 300000
+
+    config MESH_ESPNOW_ROUTE_TIMEOUT
+        int "Route timeout (ms)"
+        default 60000
+        range 10000 600000
+
+    config MESH_ESPNOW_RETRANSMIT_COUNT
+        int "Max retransmissions"
+        default 3
+        range 0 10
+
+    config MESH_ESPNOW_RETRANSMIT_TIMEOUT
+        int "Retransmit base timeout (ms)"
+        default 500
+        range 100 10000
+
+    config MESH_ESPNOW_DEEP_SLEEP_INTERVAL
+        int "Deep sleep interval (ms)"
+        default 5000
+        range 100 600000
+
+    config MESH_ESPNOW_AWAKE_WINDOW
+        int "Awake window (ms)"
+        default 200
+        range 20 5000
+
+endmenu
