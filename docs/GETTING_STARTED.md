@@ -124,14 +124,15 @@ I (8000) gateway: From 0xA1000001: {"temp":24.5,"hum":55.2}
 
 # 🧠 How It Works
 
-```
-Sensor Node                    Gateway
-    │                            │
-    │── BEACON (every 3s) ──────▶│  "I'm here, ID 0xA1000001"
-    │◀── BEACON (every 1s) ──────│  "I'm here, I'm the gateway"
-    │                            │
-    │── DATA (sensor reading) ──▶│  "temp: 24.5, hum: 55.2"
-    │◀── ACK ────────────────────│  "Got it!"
+```mermaid
+sequenceDiagram
+    participant Sensor as Sensor Node
+    participant Gateway as Gateway
+
+    Sensor->>Gateway: BEACON (every 3s)<br/>"I'm here, ID 0xA1000001"
+    Gateway->>Sensor: BEACON (every 1s)<br/>"I'm here, I'm the gateway"
+    Sensor->>Gateway: DATA (sensor reading)<br/>"temp: 24.5, hum: 55.2"
+    Gateway->>Sensor: ACK<br/>"Got it!"
 ```
 
 - Both boards broadcast **beacons** to discover each other

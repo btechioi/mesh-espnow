@@ -24,25 +24,22 @@
 
 A lightweight mesh networking library that turns ESP32 boards into a self-healing, multi-hop mesh — using only ESP-NOW. No router, no IP stack, no ESP-MESH complexity.
 
-```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│ Sensor Leaf  │────▶│  Router      │────▶│  Gateway     │──▶ Internet
-│ (battery)    │     │  (mains)     │     │  (root)      │
-│ 0xA1000001   │     │  0xA1000005  │     │  0xA1000000  │
-└──────────────┘     └──────────────┘     └──────────────┘
-       │                    │                    │
-       │          ┌─────────┘                    │
-       ▼          ▼                              │
-┌──────────────┐  │                              │
-│ Sensor Leaf  │──┘       Packets auto-route     │
-│ 0xA1000002   │          via lowest metric      │
-└──────────────┘          (hops, RSSI, battery)   │
-       │                                           │
-       ▼                                           │
-┌──────────────┐                                   │
-│ Sensor Leaf  │───────────────────────────────────┘
-│ 0xA1000003   │  (direct to gateway if in range)
-└──────────────┘
+```mermaid
+graph LR
+    subgraph LeafNodes["Leaf Nodes"]
+        L1["Sensor Leaf 0xA1000001<br/>(battery)"]
+        L2["Sensor Leaf 0xA1000002<br/>(battery)"]
+        L3["Sensor Leaf 0xA1000003<br/>(battery)"]
+    end
+    R["Router 0xA1000005<br/>(mains)"]
+    G["Gateway 0xA1000000<br/>(root)"]
+    I[Internet]
+
+    L1 -- "lowest metric" --> R
+    L2 --> R
+    R --> G
+    G --> I
+    L3 -- "direct if in range" --> G
 ```
 
 ---
@@ -141,36 +138,50 @@ void loop() {
 
 # 🏗️ Internal Architecture
 
-```
-┌──────────────────────────────────────────────┐
-│  mesh_espnow.h (public API)                   │
-│  mesh_priv.h  (internal shared state)         │
-├──────────────────────────────────────────────┤
-│                                                │
-│  mesh_core.c ───── State machine, ESP-NOW      │
-│       │          callbacks, packet builder     │
-│       │                                        │
-│  ┌────┴────────┐  ┌──────────────────┐        │
-│  │ mesh_routing│  │ mesh_reliable    │        │
-│  │ - metric    │  │ - ACK tracking   │        │
-│  │ - multi-path│  │ - retransmission │        │
-│  │ - optimize  │  │ - latency stats  │        │
-│  │ - PDR track │  │ - backoff        │        │
-│  └────┬────────┘  └───────┬──────────┘        │
-│       │                   │                    │
-│  ┌────┴────────┐  ┌───────┴──────────┐        │
-│  │ mesh_power  │  │ mesh_security    │        │
-│  │ - duty cycle│  │ - AES-128-CCM   │        │
-│  │ - deep sleep│  │ - encrypt/decrypt│        │
-│  └────┬────────┘  └──────────────────┘        │
-│       │                                        │
-│  ┌────┴────────┐                               │
-│  │ mesh_diag   │                               │
-│  │ - boot count│                               │
-│  │ - crash det │                               │
-│  │ - NVS persis│                               │
-│  └─────────────┘                               │
-└──────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph API["Public API"]
+        APIH["mesh_espnow.h"]
+        PRIVH["mesh_priv.h"]
+    end
+    subgraph CORE["mesh_core.c"]
+        SM["State machine"]
+        BC["Beacon loop"]
+        ESP["ESP-NOW I/O"]
+        PB["Packet builder"]
+    end
+    subgraph ROUT["mesh_routing.c"]
+        RT["Route table"]
+        NT["Neighbor table"]
+        MET["Metric engine"]
+        RREQ["RREQ / RREP"]
+        OPT["Optimization pass"]
+    end
+    subgraph REL["mesh_reliable.c"]
+        ACK["ACK tracking"]
+        RETX["Retransmission"]
+        TXR["TX reporting"]
+    end
+    subgraph SEC["mesh_security.c"]
+        AES["AES-128-CCM"]
+        ED["Encrypt / Decrypt"]
+    end
+    subgraph PWR["mesh_power.c"]
+        DC["Duty cycle"]
+        DS["Deep sleep"]
+    end
+    subgraph DIAG["mesh_diag.c"]
+        BCnt["Boot count"]
+        CD["Crash detection"]
+        NVS["NVS persistence"]
+    end
+
+    CORE --> ROUT
+    ROUT <--> REL
+    ROUT --> SEC
+    SEC --> CORE
+    PWR --> CORE
+    DIAG --> CORE
 ```
 
 ---

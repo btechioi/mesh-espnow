@@ -10,41 +10,62 @@
 
 # 🧬 System Overview
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│                    Application Layer                         │
-│  (app_main.c / .ino — sensors, actuators, data processing)  │
-├──────────────────────────────────────────────────────────────┤
-│                     mesh_espnow.h (API)                      │
-├───────────────────────┬──────────────────┬──────────────────┤
-│                       │                  │                  │
-│  ┌─────────────────┐  │  ┌────────────┐  │  ┌────────────┐  │
-│  │  mesh_core.c    │  │  │ mesh_power │  │  │ mesh_diag  │  │
-│  │  - state machine│  │  │ - duty cycle│  │  │ - health   │  │
-│  │  - beacon loop  │  │  │ - deep sleep│  │  │ - crash det│  │
-│  │  - ESP-NOW I/O  │  │  └────────────┘  │  └────────────┘  │
-│  └────────┬────────┘  │                  │                  │
-│           │            │                  │                  │
-│  ┌────────┴────────┐  │  ┌────────────┐  │                  │
-│  │ mesh_routing.c  │◀─┼──│mesh_reliable│  │                  │
-│  │ - route table   │  │  │ - ACK      │  │                  │
-│  │ - neighbor table│  │  │ - retransmit│  │                  │
-│  │ - metric        │  │  └────────────┘  │                  │
-│  │ - RREQ/RREP     │  │                  │                  │
-│  └────────┬────────┘  │                  │                  │
-│           │            │                  │                  │
-│  ┌────────┴────────┐  │                  │                  │
-│  │ mesh_security   │  │                  │                  │
-│  │ - AES-128-CCM   │  │                  │                  │
-│  │ - encrypt/decrypt│  │                  │                  │
-│  └─────────────────┘  │                  │                  │
-├────────────────────────┴──────────────────────────────────┤
-│                   ESP-NOW (esp_now_*)                      │
-├────────────────────────────────────────────────────────────┤
-│                   Wi-Fi (station mode)                     │
-├────────────────────────────────────────────────────────────┤
-│                   FreeRTOS + ESP-IDF                       │
-└────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph App["Application Layer"]
+        APP["app_main.c / .ino<br/>sensors, actuators, data processing"]
+    end
+    API["mesh_espnow.h (API)"]
+
+    subgraph Core["mesh_core.c"]
+        SM["State machine"]
+        BL["Beacon loop"]
+        EN["ESP-NOW I/O"]
+        PB["Packet builder"]
+    end
+
+    subgraph Routing["mesh_routing.c"]
+        RT["Route table"]
+        NT["Neighbor table"]
+        MET["Metric"]
+        RR["RREQ/RREP"]
+    end
+
+    subgraph Rel["mesh_reliable.c"]
+        ACK["ACK"]
+        RTX["Retransmit"]
+    end
+
+    subgraph Sec["mesh_security.c"]
+        AES["AES-128-CCM"]
+        CR["Encrypt/Decrypt"]
+    end
+
+    subgraph Pwr["mesh_power.c"]
+        DC["Duty cycle"]
+        DS["Deep sleep"]
+    end
+
+    subgraph Diag["mesh_diag.c"]
+        HC["Health"]
+        CD["Crash detect"]
+    end
+
+    ESPNOW["ESP-NOW (esp_now_*)"]
+    WIFI["Wi-Fi (station mode)"]
+    OS["FreeRTOS + ESP-IDF"]
+
+    App --> API
+    API --> Core
+    Core --> Routing
+    Routing <--> Rel
+    Routing --> Sec
+    Sec --> Core
+    Core --> Pwr
+    Core --> Diag
+    Core --> ESPNOW
+    ESPNOW --> WIFI
+    WIFI --> OS
 ```
 
 ## Arduino Compatibility
@@ -104,33 +125,24 @@ All APIs are identical. Just replace:
 
 # 🔄 State Machine
 
-```
-      ┌─────────────────────────────────────────────────────┐
-      │                                                     │
-      │  UNINITIALIZED                                       │
-      │     │                                               │
-      │     │ init()                                        │
-      │     ▼                                               │
-      │  INIT                                               │
-      │     │                                               │
-      │     │ start()                                       │
-      │     ▼                                               │
-      │  DISCOVERING ◀──────────────────────────────────┐   │
-      │     │                    │                       │   │
-      │     │ gateway found     │ gateway lost           │   │
-      │     ▼                    │                       │   │
-      │  CONNECTED ─────────────────────────────────────┘   │
-      │     │                    │                           │
-      │     │ stop()             │ fatal error              │
-      │     ▼                    ▼                           │
-      │  INIT                ERROR                          │
-      │     │                                               │
-      │     │ deinit()                                      │
-      │     ▼                                               │
-      │  UNINITIALIZED ◀──────────────────────────────────┘ │
-      │                                                     │
-      │  SLEEPING (sleep() → full reset on wake)            │
-      └─────────────────────────────────────────────────────┘
+```mermaid
+stateDiagram-v2
+    [*] --> UNINITIALIZED
+    UNINITIALIZED --> INIT : init()
+    INIT --> DISCOVERING : start()
+    DISCOVERING --> CONNECTED : gateway found
+    CONNECTED --> DISCOVERING : gateway lost
+    CONNECTED --> INIT : stop()
+    INIT --> ERROR : fatal error
+    INIT --> UNINITIALIZED : deinit()
+    ERROR --> UNINITIALIZED : deinit()
+
+    state SLEEPING {
+        [*] --> Wake : timer
+        Wake --> [*] : deep sleep
+    }
+    INIT --> SLEEPING : sleep()
+    SLEEPING --> UNINITIALIZED : full reset
 ```
 
 ## Transitions
@@ -151,44 +163,41 @@ All APIs are identical. Just replace:
 
 ## Send Path
 
-```
-app calls mesh_espnow_send(dest, data, len)
-    │
-    ▼
-mesh_core_send_packet()
-    │
-    ├── mesh_routing_lookup(dest)
-    │   ├── Route found → use it
-    │   └── No route → broadcast RREQ
-    │
-    ├── mesh_security_encrypt() → ciphertext + MIC
-    │
-    ├── mesh_reliable_start_tx()
-    │   ├── Save in retransmit queue
-    │   ├── esp_now_send(next_hop, packet)
-    │   └── Start ACK timer
-    │
-    └── return (async)
+```mermaid
+flowchart TD
+    A["app calls mesh_espnow_send(dest, data, len)"] --> B["mesh_core_send_packet()"]
+    B --> C{"mesh_routing_lookup(dest)"}
+    C -->|Route found| D["use it"]
+    C -->|No route| E["broadcast RREQ"]
+    D --> F["mesh_security_encrypt()<br/>→ ciphertext + MIC"]
+    E --> F
+    F --> G["mesh_reliable_start_tx()"]
+    G --> H["Save in retransmit queue"]
+    H --> I["esp_now_send(next_hop, packet)"]
+    I --> J["Start ACK timer"]
+    J --> K["return (async)"]
 ```
 
 ## Receive Path
 
-```
-esp_now_recv_cb() [ISR — minimal work]
-    │
-    ▼
-mesh_espnow_process() [main loop]
-    │
-    ├── mesh_security_decrypt()
-    ├── Check type:
-    │   DATA → deliver or forward
-    │   BROADCAST → deliver + re-broadcast
-    │   ACK → match to pending
-    │   RREQ/RREP → routing table updates
-    │   BEACON → neighbor table updates
-    │   GOODBYE → remove neighbor, fix routes
-    ├── ACK timeout + retransmission
-    └── Route optimization, expiry, health logging
+```mermaid
+flowchart TD
+    ISR["esp_now_recv_cb() [ISR — minimal work]"] --> MAIN["mesh_espnow_process() [main loop]"]
+    MAIN --> DEC["mesh_security_decrypt()"]
+    DEC --> TYPE{"Check type"}
+    TYPE -->|DATA| DEL["deliver or forward"]
+    TYPE -->|BROADCAST| BRD["deliver + re-broadcast"]
+    TYPE -->|ACK| ACKM["match to pending"]
+    TYPE -->|RREQ/RREP| RRT["routing table updates"]
+    TYPE -->|BEACON| NBR["neighbor table updates"]
+    TYPE -->|GOODBYE| GB["remove neighbor, fix routes"]
+    DEL --> TIM["ACK timeout + retransmission"]
+    BRD --> TIM
+    ACKM --> TIM
+    RRT --> TIM
+    NBR --> TIM
+    GB --> TIM
+    TIM --> OPT["Route optimization, expiry, health logging"]
 ```
 
 ---

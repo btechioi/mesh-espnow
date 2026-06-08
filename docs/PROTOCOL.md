@@ -215,26 +215,26 @@ nonce = node_id(4) || seq_num(4) || random(4) = 12 bytes
 
 # 🔄 Route Discovery Flow
 
-```
-Node A wants to send to Node D (no route)
-    │
-    ├── Broadcast RREQ: target=D, metric=0
-    │
-    │   Neighbor B receives:
-    │   ├── Learns reverse route to A
-    │   ├── Has route to D? YES → unicast RREP back
-    │   └── Does NOT re-broadcast
-    │
-    │   Neighbor C receives:
-    │   ├── Learns reverse route to A
-    │   ├── Has route to D? NO → re-broadcasts RREQ
-    │   └── ... eventually reaches D or someone with route
-    │
-    ├── RREP arrives at A from B
-    │   ├── Installs primary route: next_hop=B, hops=3
-    │   └── Route ready
-    │
-    └── A sends DATA to D via B
+```mermaid
+sequenceDiagram
+    participant A as Node A
+    participant B as Neighbor B
+    participant C as Neighbor C
+    participant D as Node D
+
+    Note over A: Wants to send to D (no route)
+    A->>B: Broadcast RREQ (target=D, metric=0)
+    A->>C: Broadcast RREQ (target=D, metric=0)
+    Note over B: Learns reverse route to A<br/>Has route to D? YES
+    B->>A: Unicast RREP back
+    Note over C: Learns reverse route to A<br/>Has route to D? NO
+    C->>D: Re-broadcast RREQ
+    Note over D: I am the target!
+    D->>C: Unicast RREP
+    C->>A: Forward RREP
+    Note over A: Installs primary route: next_hop=B, hops=3
+    A->>B: DATA to D via B
+    B->>D: Forward DATA
 ```
 
 ---
