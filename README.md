@@ -9,7 +9,7 @@
 ---
 
 <p align="center">
-  <img src="https://skillicons.dev/icons?i=cpp,arduino,raspberrypi,linux,docker,vscode" />
+  <img src="https://skillicons.dev/icons?i=c,cpp,arduino,cmake,git,github,raspberrypi,linux,docker,vscode" />
   <br>
   <img src="https://img.shields.io/badge/ESP32-000000?style=for-the-badge&logo=espressif&logoColor=white" />
   <img src="https://img.shields.io/badge/ESP--NOW-00A3E0?style=for-the-badge" />
@@ -189,18 +189,7 @@ graph TB
 # 🚀 Tech Stack
 
 <p align="left">
-  <img src="https://skillicons.dev/icons?i=cpp,arduino,raspberrypi,linux,bash,docker,vscode,python" />
-</p>
-
----
-
-# 🔥 GitHub Stats
-
-<p align="left">
-  <img src="https://streak-stats.demolab.com/?user=btechioi&theme=tokyonight" alt="GitHub Streak" />
-</p>
-<p align="left">
-  <img src="https://github-readme-activity-graph.vercel.app/graph?username=btechioi&theme=shades-of-purple" alt="Activity Graph" />
+  <img src="https://skillicons.dev/icons?i=c,cpp,arduino,cmake,git,github,raspberrypi,linux,bash,docker,vscode,python" />
 </p>
 
 ---
