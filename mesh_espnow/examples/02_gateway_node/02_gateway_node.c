@@ -1,5 +1,5 @@
 /*
- * 02_gateway_node — Mains-powered mesh root / gateway
+ * 02_gateway_node: Mains-powered mesh root / gateway
  *
  * Root node with frequent beacons. Receives and logs data from all
  * sensor nodes. Demonstrates route-change tracking and periodic stats.

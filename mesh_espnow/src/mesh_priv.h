@@ -185,7 +185,7 @@ esp_err_t mesh_core_send_packet_to(uint32_t dest_id, uint32_t next_hop, const ui
                                     uint16_t payload_len, uint8_t type, uint32_t ack_seqno, uint8_t flags);
 void      mesh_core_handle_data(const uint8_t *mac, const uint8_t *data, int len);
 
-/* mesh_routing.c — intelligent metric-based routing */
+/* mesh_routing.c: metric-based routing */
 esp_err_t mesh_routing_init(void);
 void      mesh_routing_process(uint32_t now_ms);
 void      mesh_routing_add_neighbor(uint32_t node_id, uint8_t hops, uint8_t caps, int8_t rssi, uint8_t subnet_id, uint8_t subnet_channel);

@@ -1,4 +1,4 @@
-/* mesh_security.c — AES-128-CCM encryption for ESP-NOW mesh */
+/* mesh_security.c: AES-128-CCM encryption for ESP-NOW mesh */
 
 #include "mesh_priv.h"
 #include "mbedtls/aes.h"

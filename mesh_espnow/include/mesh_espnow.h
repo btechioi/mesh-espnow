@@ -1,6 +1,6 @@
 /**
  * @file mesh_espnow.h
- * @brief ESP-NOW Mesh Network Library — Professional Mesh Networking for ESP32
+ * @brief ESP-NOW Mesh Network Library for ESP32
  *
  * =============================================================================
  *  QUICK START (for people who don't read manuals)
@@ -25,18 +25,6 @@
  *      mesh_espnow_broadcast("alert", 5);
  *  }
  *
- * =============================================================================
- *  PROFESSIONAL FEATURES
- * =============================================================================
- *
- *  ✓ Exhaustive error handling     ✓ Thread-safe (mutex-guarded)
- *  ✓ Config validation at init     ✓ Health monitoring & watchdog
- *  ✓ Rate-limited flood control    ✓ NVS state persistence
- *  ✓ Crash recovery & boot count   ✓ Factory reset capability
- *  ✓ Memory overflow protection    ✓ ISR-safe critical paths
- *  ✓ Diagnostic error strings      ✓ Runtime performance counters
- *  ✓ State machine enforcement     ✓ Resource leak detection
- *  ✓ Bounds-checked every access   ✓ Configurable logging
  *
  * =============================================================================
  *  ERROR HANDLING
@@ -54,7 +42,7 @@
  *
  *  All public functions are safe to call from any FreeRTOS task.
  *  Do NOT call from ISRs (call mesh_espnow_process_from_isr() instead).
- *  Callbacks run in the context of the caller — keep them brief.
+ *  Callbacks run in the context of the caller; keep them brief.
  *
  * =============================================================================
  *  POWER GUIDE
@@ -112,7 +100,7 @@ typedef struct {
 const mesh_espnow_version_t* mesh_espnow_get_version(void);
 
 /*============================================================================
- *  LIMITS (do not change — enforced at runtime)
+ *  LIMITS (do not change; enforced at runtime)
  *============================================================================*/
 
 #define MESH_ESPNOW_MAX_PAYLOAD_LEN   208  /**< Max application payload per packet (240 - 24 hdr - 8 MIC) */
@@ -212,7 +200,7 @@ typedef enum {
     MESH_ESPNOW_STATE_DISCOVERING   = 2, /**< start() called, looking for network */
     MESH_ESPNOW_STATE_CONNECTED     = 3, /**< Joined network (has gateway route) */
     MESH_ESPNOW_STATE_SLEEPING      = 4, /**< Deep sleep */
-    MESH_ESPNOW_STATE_ERROR         = 5, /**< Irrecoverable error — reinit required */
+    MESH_ESPNOW_STATE_ERROR         = 5, /**< Irrecoverable error; reinit required */
 } mesh_espnow_state_t;
 
 /**
@@ -665,7 +653,7 @@ uint8_t mesh_espnow_get_subnet(void);
  * delivered to the first receive callback after wake.
  *
  * To wake a sleeping node remotely, send a DATA packet to
- * its node ID — it will wake, process, and deliver via on_data.
+ * its node ID. It will wake, process, and deliver via on_data.
  *
  * @return Does not return (chip sleeps)
  */

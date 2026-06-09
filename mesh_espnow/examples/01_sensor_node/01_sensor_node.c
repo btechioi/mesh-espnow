@@ -1,5 +1,5 @@
 /*
- * 01_sensor_node — Battery-powered leaf node
+ * 01_sensor_node: Battery-powered leaf node
  *
  * Reports simulated sensor readings to the gateway every 30s.
  * Uses DUTY_CYCLE power mode for battery efficiency.

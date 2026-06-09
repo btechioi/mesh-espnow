@@ -1,5 +1,5 @@
 /*
- * 04_just_works — Zero-config mesh firmware for every ESP32 board
+ * 04_just_works: One-binary mesh firmware for every ESP32 board
  *
  * Flash the SAME binary on every board. Power on 2+ boards.
  * It just works.
@@ -19,9 +19,9 @@
  *   - PlatformIO    (any framework)
  *
  * Architecture:
- *   setup()   — NVS + mesh init, register all 8 callbacks
- *   loop()    — process mesh, run election, send data, print diag
- *   app_main()— ESP-IDF entry (ifndef ARDUINO)
+ *   setup()   : NVS + mesh init, register all 8 callbacks
+ *   loop()    : process mesh, run election, send data, print diag
+ *   app_main(): ESP-IDF entry (ifndef ARDUINO)
  */
 
 #include <stdio.h>
@@ -48,7 +48,7 @@
 static const char *TAG = "mesh";
 
 /*============================================================================
- *  Application protocol — message types in broadcast payloads
+ *  Application protocol: message types in broadcast payloads
  *============================================================================*/
 #define MSG_CANDIDACY   0x01   /* "Here are my root-election credentials" */
 #define MSG_HEARTBEAT   0x02   /* "I am the elected root, I'm alive" */
@@ -123,7 +123,7 @@ static void upsert_cand(uint32_t id, uint16_t score, uint8_t caps, uint32_t up) 
 
 static uint16_t my_score(void) {
     uint16_t s = SCORE_LEAF;
-    /* All nodes in this example are equal — just use uptime as tiebreaker */
+    /* All nodes in this example are equal; just use uptime as tiebreaker */
     uint32_t t = TIME_MS() / 1000;
     uint16_t b = (uint16_t)(t / 3600);
     if (b > SCORE_UPTIME_MAX) b = SCORE_UPTIME_MAX;
@@ -310,7 +310,7 @@ static void cb_lost(uint32_t id) {
     int i = find_cand(id);
     if (i >= 0) s_cands[i] = s_cands[--s_cand_cnt];
     if (id == s_root_id) {
-        ESP_LOGW(TAG, "Root 0x%08X GONE — re-electing", id);
+        ESP_LOGW(TAG, "Root 0x%08X GONE: re-electing", id);
         s_root_id = 0;
         elect();
     }
@@ -340,7 +340,7 @@ void setup(void) {
     ESP_LOGI(TAG, "");
     ESP_LOGI(TAG, "========================================");
     ESP_LOGI(TAG, "  ESP-NOW Mesh v3");
-    ESP_LOGI(TAG, "  Zero-config — flash & forget");
+    ESP_LOGI(TAG, "  One binary for all nodes");
     ESP_LOGI(TAG, "========================================");
 
     esp_err_t ret = nvs_flash_init();
@@ -396,7 +396,7 @@ void loop(void) {
     }
 
     if (s_root_id && !s_im_root && now - s_root_last_ms >= HEARTBEAT_TO_MS) {
-        ESP_LOGW(TAG, "Heartbeat timeout — re-electing");
+        ESP_LOGW(TAG, "Heartbeat timeout: re-electing");
         s_root_id = 0;
         elect();
     }

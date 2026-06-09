@@ -1,4 +1,4 @@
-/* mesh_diag.c — Health monitoring, boot tracking, diagnostics */
+/* mesh_diag.c: Health monitoring, boot tracking, diagnostics */
 
 #include "mesh_priv.h"
 
@@ -41,7 +41,7 @@ esp_err_t mesh_diag_init(void) {
 
     /* Check RTC for crash detection */
     if (s_rtc_boot_count > 0) {
-        /* Previous boot recorded — if boot count didn't increment properly, it was a crash */
+        /* Previous boot recorded: if boot count did not increment, it was a crash */
         if (s_diag.boot_count <= s_rtc_boot_count) {
             s_diag.crash_count++;
             s_diag.rtc_crash_count = s_diag.crash_count;

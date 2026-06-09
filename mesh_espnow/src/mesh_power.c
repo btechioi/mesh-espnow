@@ -1,4 +1,4 @@
-/* mesh_power.c — Power management with duty cycling and deep sleep */
+/* mesh_power.c: Power management with duty cycling and deep sleep */
 
 #include "mesh_priv.h"
 
@@ -66,6 +66,6 @@ bool mesh_power_should_sleep(void) {
         uint32_t now_ms = (uint32_t)(esp_timer_get_time() / 1000);
         return (now_ms - g_mesh.last_beacon_ms >= g_mesh.config.beacon_interval_ms);
     }
-    /* ON_DEMAND: never auto-sleep — application calls mesh_espnow_sleep() explicitly */
+    /* ON_DEMAND: never auto-sleep. Application calls mesh_espnow_sleep() explicitly. */
     return false;
 }

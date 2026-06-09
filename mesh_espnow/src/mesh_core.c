@@ -1,4 +1,4 @@
-/* mesh_core.c — Core lifecycle, state machine, ESP-NOW integration */
+/* mesh_core.c: Core lifecycle, state machine, ESP-NOW integration */
 
 #include "mesh_priv.h"
 
@@ -326,7 +326,7 @@ void mesh_core_handle_data(const uint8_t *mac, const uint8_t *data, int len) {
                 payload = decrypted;
             }
 
-            /* Forward if not for us — use next hop from routing table */
+            /* Forward if not for us. Use next hop from routing table. */
             if (hdr->dest_id != g_mesh.config.node_id && hdr->dest_id != 0xFFFFFFFF) {
                 if (hdr->ttl > 1) {
                     uint32_t next_hop = 0;
@@ -336,7 +336,7 @@ void mesh_core_handle_data(const uint8_t *mac, const uint8_t *data, int len) {
                         mesh_core_send_packet_to(hdr->dest_id, next_hop, payload,
                                                   (uint16_t)dlen, PKT_DATA, 0, hdr->flags);
                     } else {
-                        /* No route — one-hop gamble to final dest */
+                        /* No route: one-hop gamble to final dest */
                         mesh_core_send_packet(hdr->dest_id, payload, (uint16_t)dlen,
                                                PKT_DATA, 0, hdr->flags);
                     }
@@ -688,7 +688,7 @@ esp_err_t mesh_espnow_start(void) {
     g_mesh.last_process_ms = (uint32_t)(esp_timer_get_time() / 1000);
     mesh_core_transition_to(MESH_ESPNOW_STATE_DISCOVERING);
 
-    MESH_LOG(ESP_LOG_INFO, TAG, "Node started — discovering network...");
+    MESH_LOG(ESP_LOG_INFO, TAG, "Node started: discovering network...");
     return ESP_OK;
 }
 
@@ -774,7 +774,7 @@ esp_err_t mesh_espnow_factory_reset(void) {
     /* Erase all NVS */
     nvs_flash_erase();
 
-    MESH_LOG(ESP_LOG_INFO, TAG, "Factory reset — rebooting");
+    MESH_LOG(ESP_LOG_INFO, TAG, "Factory reset: rebooting");
     esp_restart();
     return ESP_OK; /* never reached */
 }
@@ -835,7 +835,7 @@ esp_err_t mesh_espnow_sleep(void) {
 
     if (g_mesh.config.power_mode == MESH_ESPNOW_POWER_DEEP_SLEEP_ON_DEMAND) {
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0)
-        MESH_LOG(ESP_LOG_INFO, TAG, "Entering deep sleep on demand — wake on ESP-NOW packet");
+        MESH_LOG(ESP_LOG_INFO, TAG, "Entering deep sleep on demand: wake on ESP-NOW packet");
         esp_sleep_enable_espnow_wakeup();
 #else
         MESH_LOG(ESP_LOG_WARN, TAG, "ON_DEMAND requires IDF >= 4.4, falling back to timer wakeup");
@@ -1012,7 +1012,7 @@ void mesh_espnow_process(uint32_t now_ms) {
 }
 
 void mesh_espnow_process_from_isr(void) {
-    /* Minimal ISR processing — just a placeholder for now.
+    /* Minimal ISR processing: just a placeholder for now.
      * The main data flow is handled in the ESP-NOW receive callback directly.
      */
 }

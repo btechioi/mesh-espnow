@@ -1,4 +1,4 @@
-/* mesh_routing.c — Intelligent metric-based AODV routing
+/* mesh_routing.c: Metric-based AODV routing
  *
  * Design:
  *   - Route metric = weighted sum of hop count, RSSI, battery, capabilities, reliability
@@ -177,10 +177,10 @@ static uint16_t compute_metric(uint8_t hops, int8_t rssi, uint8_t caps, uint32_t
                                 uint32_t tx_attempts, uint32_t tx_successes, bool same_subnet) {
     uint32_t m = 0;
 
-    /* 1. Hop count — primary cost */
+    /* 1. Hop count: primary cost */
     m += (uint32_t)hops * METRIC_HOP_WT;
 
-    /* 2. RSSI — signal quality penalty
+    /* 2. RSSI: signal quality penalty
      *    Perfect RSSI = -50 or better: 0 penalty
      *    At -100: 100 penalty (very poor)
      */
@@ -191,27 +191,27 @@ static uint16_t compute_metric(uint8_t hops, int8_t rssi, uint8_t caps, uint32_t
         m += (uint32_t)rssi_penalty * METRIC_RSSI_WT;
     }
 
-    /* 3. Subnet affinity — prefer same-subnet neighbors (avoids bridge hops) */
+    /* 3. Subnet affinity: prefer same-subnet neighbors (avoids bridge hops) */
     if (same_subnet) {
         m -= METRIC_CAP_LEAF_WT;  /* -30 bonus for same subnet */
     } else {
         m += METRIC_CAP_LEAF_WT;  /* +30 penalty for cross-subnet */
     }
 
-    /* 4. Capability — prefer routers over leaf nodes */
+    /* 4. Capability: prefer routers over leaf nodes */
     if (caps & MESH_ESPNOW_CAP_GATEWAY) {
         m -= METRIC_CAP_LEAF_WT;  /* bonus for gateways */
     } else if (!(caps & MESH_ESPNOW_CAP_ROUTER)) {
         m += METRIC_CAP_LEAF_WT;  /* penalty for leaf-only */
     }
 
-    /* 5. Battery — prefer mains-powered */
+    /* 5. Battery: prefer mains-powered */
     if (battery_mv > 0 && battery_mv < 3300) {
         uint32_t batt_penalty = (3300 - battery_mv) / 100;
         m += batt_penalty * METRIC_BATTERY_WT;
     }
 
-    /* 6. Link reliability — packet delivery ratio */
+    /* 6. Link reliability: packet delivery ratio */
     if (tx_attempts > 5) {
         uint32_t pdr = (tx_successes * 100) / tx_attempts;
         if (pdr < 50) {
@@ -414,7 +414,7 @@ void mesh_routing_update_route(uint32_t dest, uint32_t next_hop, uint8_t hops, i
     route_entry_t *r = route_find(dest);
 
     if (!r) {
-        /* New route — install as primary */
+        /* New route: install as primary */
         r = route_alloc();
         r->dest         = dest;
         r->used         = true;
@@ -434,9 +434,9 @@ void mesh_routing_update_route(uint32_t dest, uint32_t next_hop, uint8_t hops, i
         goto check_gateway;
     }
 
-    /* Route exists — compare metrics */
+    /* Route exists: compare metrics */
     if (new_metric < r->metric) {
-        /* New path is better — demote current to backup, install new primary */
+        /* New path is better: demote current to backup, install new primary */
         if (r->next_hop != next_hop) {
             r->backup_valid    = true;
             r->backup_next_hop = r->next_hop;
@@ -544,7 +544,7 @@ static void route_reevaluate_gateway(void) {
 }
 
 /*============================================================================
- *  Route lookup with intelligent selection
+ *  Route lookup
  *============================================================================*/
 
 bool mesh_routing_find_route(uint32_t dest, uint32_t *next_hop, uint8_t *hops, int8_t *rssi) {
@@ -574,7 +574,7 @@ bool mesh_routing_find_route(uint32_t dest, uint32_t *next_hop, uint8_t *hops, i
             return true;
         }
 
-        /* Primary next hop gone — try backup */
+        /* Primary next hop gone: try backup */
         if (r->backup_valid) {
             neighbor_entry_t *bn = neighbor_find(r->backup_next_hop);
             if (bn) {
@@ -668,7 +668,7 @@ void mesh_routing_handle_rreq(uint32_t src, uint32_t orig, uint32_t seqno, uint8
     /* If we are the destination being sought, reply with RREP */
     if (orig != 0) {
         if (orig == g_mesh.config.node_id) {
-            /* We ARE the destination — send RREP back to source */
+            /* We ARE the destination: send RREP back to source */
             uint8_t rrep_data[4];
             rrep_data[0] = (orig >> 24) & 0xFF;
             rrep_data[1] = (orig >> 16) & 0xFF;
@@ -679,7 +679,7 @@ void mesh_routing_handle_rreq(uint32_t src, uint32_t orig, uint32_t seqno, uint8
             g_mesh.stats.rreps_sent++;
             ROUTE_LOG(ESP_LOG_INFO, "RREP to 0x%08X (I am the destination)", src);
         } else {
-            /* We have a route to the destination — reply with it */
+            /* We have a route to the destination: reply with it */
             uint32_t nh;
             uint8_t  hcnt;
             int8_t   rs;

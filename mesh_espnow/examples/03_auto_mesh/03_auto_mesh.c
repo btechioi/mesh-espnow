@@ -1,5 +1,5 @@
 /*
- * 03_auto_mesh — Fully automatic mesh with self-electing root
+ * 03_auto_mesh: Mesh with self-electing root
  *
  * Nodes auto-discover each other and elect a root based on capability
  * and uptime. No manual gateway configuration needed.
@@ -274,7 +274,7 @@ static void cb_lost(uint32_t id) {
     int i = find_cand(id);
     if (i >= 0) s_cands[i] = s_cands[--s_cand_cnt];
     if (id == s_root_id) {
-        ESP_LOGW(TAG, "Root gone — re-electing");
+        ESP_LOGW(TAG, "Root gone: re-electing");
         s_root_id = 0; elect();
     }
 }
@@ -339,7 +339,7 @@ void loop(void) {
     }
 
     if (s_root_id && !s_im_root && now - s_hb_last_ms >= HEARTBEAT_TO_MS) {
-        ESP_LOGW(TAG, "Heartbeat timeout — re-electing");
+        ESP_LOGW(TAG, "Heartbeat timeout: re-electing");
         s_root_id = 0; elect();
     }
 

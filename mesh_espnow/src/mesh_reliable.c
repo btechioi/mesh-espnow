@@ -1,4 +1,4 @@
-/* mesh_reliable.c — ACK-based reliable delivery with retransmission */
+/* mesh_reliable.c: ACK-based reliable delivery with retransmission */
 
 #include "mesh_priv.h"
 
