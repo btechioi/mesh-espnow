@@ -3,10 +3,6 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/github/stars/btechioi/mesh-espnow?style=for-the-badge&color=00e1ff" /> <img src="https://img.shields.io/github/forks/btechioi/mesh-espnow?style=for-the-badge&color=0055ff" /> <img src="https://img.shields.io/github/license/btechioi/mesh-espnow?style=for-the-badge&color=00e1ff" />
-</p>
-
-<p align="center">
   <b>ESP-NOW Mesh Network Library v3 — Intelligent, metric-based self-forming/self-healing mesh for ESP32. No Wi-Fi infrastructure, no IP stack, no ESP-MESH.</b>
 </p>
 
